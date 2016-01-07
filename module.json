@@ -1,0 +1,19 @@
+{
+  "name": "sal-iface-serialmodem",
+  "version": "0.0.0",
+  "description": "sal interface for serial 3g modems",
+  "keywords": [
+    "sal",
+    "lwip",
+    "3g",
+    "serial",
+    "ppp",
+    "mbed",
+    "modem"
+  ],
+  "author": "Carmelo Migliore <car.miglio@gmail.com>",
+  "license": "Apache-2.0",
+  "dependencies": {
+  "sal-stack-lwip": "^1.0.0"
+ }
+}
