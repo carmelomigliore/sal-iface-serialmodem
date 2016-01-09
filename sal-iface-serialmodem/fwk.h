@@ -45,7 +45,6 @@ typedef byte bool;
 #define BRK '\x1A'
 
 //Custom utility classes
-#include "IOStream.h"
 //#include "String.h"
 
 //Error codes

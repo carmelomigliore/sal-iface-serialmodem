@@ -31,17 +31,17 @@ FONA808::FONA808(PinName Tx, PinName Rx):m_ipInit(false){
 }
 
 int FONA808::connect(const char* apn = NULL, const char* user = NULL, const char* password = NULL){
-
+ return 0;
 }
 
 int FONA808::disconnect(){
-
+   return 0;
 }
 
 int FONA808::init(){
-
+  return 0;
 }
 
 int FONA808::cleanup(){
-
+  return 0;
 }
