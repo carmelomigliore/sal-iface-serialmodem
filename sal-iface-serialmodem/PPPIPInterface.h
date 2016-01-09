@@ -25,7 +25,7 @@
 
 #include "LwIPInterface.h"
 
-#include "lwip/sio.h"
+#include "sal-stack-lwip/lwip/sio.h"
 
 #define DEFAULT_MSISDN_GSM    "*99#"
 #define DEFAULT_MSISDN_CDMA   "#777"

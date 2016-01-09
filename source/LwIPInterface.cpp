@@ -23,7 +23,7 @@
 #include "LwIPInterface.h"
 
 extern "C" {
-#include "sal-stack-lwip/init.h"
+#include "sal-stack-lwip/lwip/init.h"
 //#include "lwip/tcpip.h"
 }
 
