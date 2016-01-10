@@ -43,17 +43,17 @@ using std::sprintf;
 #define HANGUP_CMD "ATH" "\x0D"
 #define NO_CARRIER_RESP "\x0D" "\x0A" "NO CARRIER" "\x0D" "\x0A"
 extern "C" {
-#include "sal-stack-lwip/lwip/ip_addr.h"
-#include "sal-stack-lwip/lwip/inet.h"
-#include "sal-stack-lwip/lwip/err.h"
-#include "sal-stack-lwip/lwip/dns.h"
+#include "lwip/ip_addr.h"
+#include "lwip/inet.h"
+#include "lwip/err.h"
+#include "lwip/dns.h"
 
-#include "sal-stack-lwip/netif/ppp/ppp.h"
+#include "ppp.h"
 }
 
-PPPIPInterface::PPPIPInterface(Serial pStream) : LwIPInterface(), m_pppErrCode(0), m_streamAvail(true), m_pppd(-1)
+PPPIPInterface::PPPIPInterface(PinName Tx, PinName Rx) : LwIPInterface(), m_pppErrCode(0), m_streamAvail(true), m_pppd(-1),m_pStream(Tx,Rx)
 {
-  this.m_pStream = pStream;
+
 }
 
 
@@ -103,7 +103,7 @@ int PPPIPInterface::setup(const char* user, const char* pw, const char* msisdn)
   
   len = 0;
   size_t readLen;
-  while((buf[len]=m_pStream.getc()) != LF){
+  while((buf[len]=m_pStream.getc()) != LF && len <32){
       len++;
   }
   /*ret = m_pStream->read((uint8_t*)buf + len, &readLen, EXPECTED_RESP_MIN_LEN, 10000);
@@ -187,13 +187,13 @@ int PPPIPInterface::setup(const char* user, const char* pw, const char* msisdn)
   case PPPERR_PROTOCOL: //Protocol error
     return NET_PROTOCOL;
   default:
-    return NET_UNKNOWN;*/
-  }
+    return NET_UNKNOWN;
+  }*/
 }
 
 /*virtual*/ int PPPIPInterface::disconnect()
 {
-  int ret = m_linkStatusSphre.wait(0);
+  int ret = 0;// m_linkStatusSphre.wait(0); TODO
   if(ret > 0) //Already disconnected?
   {
     m_pppd = -1; //Discard PPP descriptor
@@ -217,7 +217,7 @@ int PPPIPInterface::setup(const char* user, const char* pw, const char* msisdn)
     pppClose(m_pppd);
     do
     {
-      m_linkStatusSphre.wait(); //Block indefinitely; there should be a timeout there
+     // m_linkStatusSphre.wait(); //Block indefinitely; there should be a timeout there
       DBG("Received PPP err code %d", m_pppErrCode);
     } while(m_pppErrCode != PPPERR_USER);
     m_pppd = -1; //Discard PPP descriptor
@@ -225,8 +225,9 @@ int PPPIPInterface::setup(const char* user, const char* pw, const char* msisdn)
   
   DBG("Sending %s", ESCAPE_SEQ);
   
-  ret = m_pStream->write((uint8_t*)ESCAPE_SEQ, strlen(ESCAPE_SEQ), osWaitForever);
-  if( ret != OK )
+ // ret = m_pStream.write((uint8_t*)ESCAPE_SEQ, strlen(ESCAPE_SEQ), osWaitForever);
+  ret = m_pStream.printf(ESCAPE_SEQ);
+  if( ret < 0 )
   {
     return NET_UNKNOWN;
   }
@@ -243,20 +244,21 @@ int PPPIPInterface::cleanupLink()
   char buf[32];
   size_t len;
   
-  do //Clear buf
+ /* do //Clear buf  TODO
   {
-    ret = m_pStream->read((uint8_t*)buf, &len, 32, 100);
+    ret = m_pStream.read((uint8_t*)buf, &len, 32, 100);
     if(ret == OK)
     {
       buf[len] = '\0';
       DBG("Got %s", buf);
     }
-  } while( (ret == OK) && (len > 0) );
+  } while( (ret == OK) && (len > 0) );*/
   
   DBG("Sending %s", HANGUP_CMD);
   
-  ret = m_pStream->write((uint8_t*)HANGUP_CMD, strlen(HANGUP_CMD), osWaitForever);
-  if( ret != OK )
+  //ret = m_pStream.write((uint8_t*)HANGUP_CMD, strlen(HANGUP_CMD), osWaitForever);
+ ret = m_pStream.printf(HANGUP_CMD);
+  if( ret < 0 )
   {
     return NET_UNKNOWN;
   }
@@ -269,16 +271,20 @@ int PPPIPInterface::cleanupLink()
   len = 0;
   while( len < strlen(HANGUP_CMD) )
   {
-    ret = m_pStream->read((uint8_t*)buf + len, &readLen, strlen(HANGUP_CMD) - len, 100);
+    /*ret = m_pStream.read((uint8_t*)buf + len, &readLen, strlen(HANGUP_CMD) - len, 100);
     if( ret != OK )
     {
       break;
     }
     len += readLen;
+   buf[len]=0;
+   DBG("Got %s", buf);*/
+    buf[len] = m_pStream.getc();
+    len++;
     /////
-    buf[len]=0;
-    DBG("Got %s", buf);
+   
   }
+ 
   
   buf[len]=0;
   
@@ -290,7 +296,7 @@ int PPPIPInterface::cleanupLink()
   len = 0;
   while( len < strlen(OK_RESP) )
   {
-    ret = m_pStream->read((uint8_t*)buf + len, &readLen, strlen(OK_RESP) - len, 100);
+    /*ret = m_pStream.read((uint8_t*)buf + len, &readLen, strlen(OK_RESP) - len, 100);
     if( ret != OK )
     {
       break;
@@ -298,7 +304,9 @@ int PPPIPInterface::cleanupLink()
     len += readLen;
     /////
     buf[len]=0;
-    DBG("Got %s", buf);
+    DBG("Got %s", buf);*/
+    buf[len] = m_pStream.getc();
+    len++;
   }
   
   buf[len]=0;
@@ -311,7 +319,7 @@ int PPPIPInterface::cleanupLink()
   len = 0;
   while( len < strlen(NO_CARRIER_RESP) )
   {
-    ret = m_pStream->read((uint8_t*)buf + len, &readLen, strlen(NO_CARRIER_RESP) - len, 100);
+   /* ret = m_pStream.read((uint8_t*)buf + len, &readLen, strlen(NO_CARRIER_RESP) - len, 100);
     if( ret != OK )
     {
       break;
@@ -319,22 +327,24 @@ int PPPIPInterface::cleanupLink()
     len += readLen;
     /////
     buf[len]=0;
-    DBG("Got %s", buf);
+    DBG("Got %s", buf);*/
+    buf[len] = m_pStream.getc();
+    len++;
   }
   
   buf[len]=0;
   
   DBG("Got %s[len %d]", buf, len);
   
-  do //Clear buf
+  /*do //Clear buf
   {
-    ret = m_pStream->read((uint8_t*)buf, &len, 32, 100);
+    ret = m_pStream.read((uint8_t*)buf, &len, 32, 100);
     if(ret == OK)
     {
       buf[len] = '\0';
       DBG("Got %s", buf);
     }
-  } while( (ret == OK) && (len > 0) );
+  } while( (ret == OK) && (len > 0) );*/
   
   
   return OK;

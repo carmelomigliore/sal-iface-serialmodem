@@ -39,7 +39,7 @@ typedef byte bool;
 #define NULL ((void*)0)
 #endif
 
-#define CR '\x0D'
+#define CAR '\x0D'
 #define LF '\x0A'
 #define GD '\x3E'
 #define BRK '\x1A'

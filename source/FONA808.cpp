@@ -24,13 +24,11 @@
 #include "fwk.h"
 #include "FONA808.h"
 
-FONA808::FONA808(PinName Tx, PinName Rx):m_ipInit(false){
-
- mSerial = Serial(Tx,Rx);
+FONA808::FONA808(PinName Tx, PinName Rx):m_ipInit(false),mSerial(Tx,Rx),m_ppp(Tx,Rx) {
 
 }
 
-int FONA808::connect(const char* apn = NULL, const char* user = NULL, const char* password = NULL){
+int FONA808::connect(const char* apn, const char* user, const char* password){
  return 0;
 }
 

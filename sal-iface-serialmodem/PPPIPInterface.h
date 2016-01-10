@@ -25,7 +25,7 @@
 
 #include "LwIPInterface.h"
 
-#include "sal-stack-lwip/lwip/sio.h"
+#include "lwip/sio.h"
 
 #define DEFAULT_MSISDN_GSM    "*99#"
 #define DEFAULT_MSISDN_CDMA   "#777"
@@ -36,7 +36,7 @@
 class PPPIPInterface : public LwIPInterface
 {
 public:
-    PPPIPInterface(Serial pStream);
+    PPPIPInterface(PinName Tx, PinName Rx);
     virtual ~PPPIPInterface();
 
     int init(); //Init PPP-specific stuff, create the right bindings, etc
