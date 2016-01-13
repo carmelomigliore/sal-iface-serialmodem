@@ -22,7 +22,7 @@
 
 #include "mbed-drivers/mbed.h"
 #include "fwk.h"
-
+#include "SerialBuffered.h"
 #include "LwIPInterface.h"
 
 #include "lwip/sio.h"
@@ -36,26 +36,31 @@
 class PPPIPInterface : public LwIPInterface
 {
 public:
-    PPPIPInterface(PinName Tx, PinName Rx);
+    PPPIPInterface(SerialBuffered* mSerial);
     virtual ~PPPIPInterface();
 
     int init(); //Init PPP-specific stuff, create the right bindings, etc
     int setup(const char* user, const char* pw, const char* msisdn); //Setup authentication
     virtual int connect();
     virtual int disconnect();
+    int getPPPErrorCode();
 
 private:
     int cleanupLink();
 
+    void pppReadRoutine();
+    void disconnectionCallback();
+    void connectionCallback();
     static void linkStatusCb(void *ctx, int errCode, void *arg); //PPP link status
     //Semaphore m_linkStatusSphre;
     int m_pppErrCode;
 
-    Serial m_pStream; //Serial stream
+    SerialBuffered* m_pStream; //Serial stream
     bool m_streamAvail;
     const char* m_msisdn;
 
     int m_pppd;
+    minar::callback_handle_t pppReadHandle; //
 
     friend u32_t sio_write(sio_fd_t fd, u8_t *data, u32_t len);
     /*friend u32_t sio_read(sio_fd_t fd, u8_t *data, u32_t len);

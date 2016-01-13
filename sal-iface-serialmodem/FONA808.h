@@ -29,6 +29,7 @@
 //#include "LinkMonitor.h"
 #include "CellularModem.h"
 #include "mbed-drivers/mbed.h"
+#include "SerialBuffered.h"
 
 /*class genericAtProcessor : public IATCommandsProcessor
 {
@@ -50,7 +51,7 @@ class FONA808: public CellularModem
 public:
   /** Create u-blox API instance
    */
-  FONA808(PinName Tx, PinName rx);
+  FONA808(PinName Tx, PinName rx, PinName rst);
 
   //Internet-related functions
 
@@ -116,7 +117,7 @@ public:
    * 1) Start AT interface thread
    * 2) Wait for network registration
    */
-  int init();
+  bool init();
   
   /** De-initialise dongle.
    * The following actions are performed:
@@ -126,10 +127,21 @@ public:
    */
   int cleanup();
 
+  uint8_t getNetworkStatus();
+
+
+  /** 
+   * send an AT command and check the reply
+   */
+  bool sendCheckReply(char* command, const char* expected, uint16_t timeout);
+
 private:
-  Serial mSerial;    // Serial to which FONA is connected
+  SerialBuffered mSerial;    // Serial to which FONA is connected
  // LinkMonitor m_linkMonitor;   //< Interface to link monitor (RSSI) 
   PPPIPInterface m_ppp;        //< Interface to PPP conection manager (IP assignment etc)
   bool m_ipInit;          //< Has PPIPInterface object (m_ppp) been initialised? true/false
+  DigitalOut m_rst;       //rst pin of FONA
+  bool sendParseReply(char* command, const char *toreply, uint16_t *v, char divider, uint8_t index, uint16_t timeout);
  // bool m_linkMonitorInit; //< Has LinkMonitor object (m_linkMonitor) been initialised? true/false
 };
+#endif

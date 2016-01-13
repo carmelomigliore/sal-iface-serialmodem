@@ -51,9 +51,9 @@ extern "C" {
 #include "ppp.h"
 }
 
-PPPIPInterface::PPPIPInterface(PinName Tx, PinName Rx) : LwIPInterface(), m_pppErrCode(0), m_streamAvail(true), m_pppd(-1),m_pStream(Tx,Rx)
+PPPIPInterface::PPPIPInterface(SerialBuffered* mSerial) : LwIPInterface(), m_pppErrCode(0), m_streamAvail(true), m_pppd(-1)
 {
-
+    m_pStream = mSerial;
 }
 
 
@@ -81,7 +81,7 @@ int PPPIPInterface::setup(const char* user, const char* pw, const char* msisdn)
   return OK;
 }
 
-/*virtual*/ int PPPIPInterface::connect()
+/*virtual*/ int PPPIPInterface::connect() //TODO callback connection
 {
   int ret;
   char cmd[32];
@@ -95,7 +95,7 @@ int PPPIPInterface::setup(const char* user, const char* pw, const char* msisdn)
   cmdLen = sprintf(cmd, "%s%s%s", CONNECT_CMD_PREFIX, m_msisdn, CONNECT_CMD_SUFFIX);
   DBG("Sending %s", cmd);
   //ret = m_pStream->write((uint8_t*)cmd, cmdLen, osWaitForever);
-  ret = m_pStream.printf("%s", cmd);
+  ret = m_pStream->printf("%s", cmd);
   if( ret < 0 )
   {
     return NET_UNKNOWN;
@@ -103,7 +103,7 @@ int PPPIPInterface::setup(const char* user, const char* pw, const char* msisdn)
   
   len = 0;
   size_t readLen;
-  while((buf[len]=m_pStream.getc()) != LF && len <32){
+ /* while(m_pStream->available() && (buf[len]=m_pStream->getc()) != LF && len <EXPECTED_RESP_MIN_LEN){
       len++;
   }
   /*ret = m_pStream->read((uint8_t*)buf + len, &readLen, EXPECTED_RESP_MIN_LEN, 10000);
@@ -123,6 +123,10 @@ int PPPIPInterface::setup(const char* user, const char* pw, const char* msisdn)
     len += readLen;
   }
   */
+
+  m_pStream->setTimeout(10);
+  len = m_pStream->readBytes((uint8_t*)buf,EXPECTED_RESP_MIN_LEN);
+  
   buf[len]=0;
   
   DBG("Got %s[len %d]", buf, len);
@@ -135,10 +139,7 @@ int PPPIPInterface::setup(const char* user, const char* pw, const char* msisdn)
     if (strcmp(cmd, buf) != 0)
     {
       //Discard buffer
-      /*do //Clear buf
-      {
-        ret = m_pStream->read((uint8_t*)buf, &len, 32, 0);
-      } while( (ret == OK) && (len > 0) );*/
+      m_pStream->cleanBuffer();
       return NET_CONN;
     }
   }    
@@ -166,7 +167,7 @@ int PPPIPInterface::setup(const char* user, const char* pw, const char* msisdn)
   }
   m_pppd = ret; 
 
-  // TODO: set event for connection / disconnection
+  // TODO: set event for connection / disconnection (callback)
 
   return OK;
 
@@ -191,9 +192,15 @@ int PPPIPInterface::setup(const char* user, const char* pw, const char* msisdn)
   }*/
 }
 
+void PPPIPInterface::connectionCallback(){
+
+  mbed::util::FunctionPointer0<void> ptr(this,&PPPIPInterface::pppReadRoutine);
+  pppReadHandle = minar::Scheduler::postCallback(ptr.bind()).period(minar::milliseconds(500)).getHandle();
+}
+
 /*virtual*/ int PPPIPInterface::disconnect()
 {
-  int ret = 0;// m_linkStatusSphre.wait(0); TODO
+  int ret = 0;// m_linkStatusSphre.wait(0); TODO 
   if(ret > 0) //Already disconnected?
   {
     m_pppd = -1; //Discard PPP descriptor
@@ -215,7 +222,9 @@ int PPPIPInterface::setup(const char* user, const char* pw, const char* msisdn)
       return NET_INVALID;
     }
     pppClose(m_pppd);
-    do
+
+  }
+  /*  do
     {
      // m_linkStatusSphre.wait(); //Block indefinitely; there should be a timeout there
       DBG("Received PPP err code %d", m_pppErrCode);
@@ -225,45 +234,82 @@ int PPPIPInterface::setup(const char* user, const char* pw, const char* msisdn)
   
   DBG("Sending %s", ESCAPE_SEQ);
   
- // ret = m_pStream.write((uint8_t*)ESCAPE_SEQ, strlen(ESCAPE_SEQ), osWaitForever);
-  ret = m_pStream.printf(ESCAPE_SEQ);
+ // ret = m_pStream->write((uint8_t*)ESCAPE_SEQ, strlen(ESCAPE_SEQ), osWaitForever);
+  ret = m_pStream->printf(ESCAPE_SEQ);
   if( ret < 0 )
   {
     return NET_UNKNOWN;
   }
   
-  cleanupLink();
+  cleanupLink();*/
   
   return OK;
+}
+
+/*
+ * To be scheduled periodically 
+ */
+
+void PPPIPInterface::pppReadRoutine(){
+  uint8_t buffer[256];
+  m_pStream->setTimeout(0.1);
+  int read = m_pStream->readBytes(buffer,256);
+  if(read>0){
+    pppos_input(m_pppd, buffer,read);
+  }
+}
+
+void PPPIPInterface::disconnectionCallback(){
+  minar::Scheduler::cancelCallback(pppReadHandle);
+  DBG("Sending %s", ESCAPE_SEQ);
+ 
+ // ret = m_pStream->write((uint8_t*)ESCAPE_SEQ, strlen(ESCAPE_SEQ), osWaitForever);
+ int ret = m_pStream->printf(ESCAPE_SEQ);
+  if( ret < 0 )
+  {
+    return;
+  }
+
+  m_pppd = -1; //discard ppp descriptor
+  
+  cleanupLink();
+}
+
+int PPPIPInterface::getPPPErrorCode(){
+  return m_pppErrCode;
 }
 
 
 int PPPIPInterface::cleanupLink()
 {
   int ret;
-  char buf[32];
+ /* char buf[32];
   size_t len;
   
- /* do //Clear buf  TODO
+  do //Clear buf  TODO DONE
   {
-    ret = m_pStream.read((uint8_t*)buf, &len, 32, 100);
+    ret = m_pStream->read((uint8_t*)buf, &len, 32, 100);
     if(ret == OK)
     {
       buf[len] = '\0';
       DBG("Got %s", buf);
     }
   } while( (ret == OK) && (len > 0) );*/
+
+  //clear buffer
+
+  m_pStream->cleanBuffer();
   
   DBG("Sending %s", HANGUP_CMD);
   
-  //ret = m_pStream.write((uint8_t*)HANGUP_CMD, strlen(HANGUP_CMD), osWaitForever);
- ret = m_pStream.printf(HANGUP_CMD);
+  //ret = m_pStream->write((uint8_t*)HANGUP_CMD, strlen(HANGUP_CMD), osWaitForever);
+  ret = m_pStream->printf(HANGUP_CMD);
   if( ret < 0 )
   {
     return NET_UNKNOWN;
   }
      
-  size_t readLen;
+ /* size_t readLen;
   
   //Hangup
   DBG("Expect %s", HANGUP_CMD);
@@ -271,15 +317,15 @@ int PPPIPInterface::cleanupLink()
   len = 0;
   while( len < strlen(HANGUP_CMD) )
   {
-    /*ret = m_pStream.read((uint8_t*)buf + len, &readLen, strlen(HANGUP_CMD) - len, 100);
+    ret = m_pStream->read((uint8_t*)buf + len, &readLen, strlen(HANGUP_CMD) - len, 100);
     if( ret != OK )
     {
       break;
     }
     len += readLen;
    buf[len]=0;
-   DBG("Got %s", buf);*/
-    buf[len] = m_pStream.getc();
+   DBG("Got %s", buf);
+    buf[len] = m_pStream->getc();
     len++;
     /////
    
@@ -296,7 +342,7 @@ int PPPIPInterface::cleanupLink()
   len = 0;
   while( len < strlen(OK_RESP) )
   {
-    /*ret = m_pStream.read((uint8_t*)buf + len, &readLen, strlen(OK_RESP) - len, 100);
+    ret = m_pStream->read((uint8_t*)buf + len, &readLen, strlen(OK_RESP) - len, 100);
     if( ret != OK )
     {
       break;
@@ -304,8 +350,8 @@ int PPPIPInterface::cleanupLink()
     len += readLen;
     /////
     buf[len]=0;
-    DBG("Got %s", buf);*/
-    buf[len] = m_pStream.getc();
+    DBG("Got %s", buf);
+    buf[len] = m_pStream->getc();
     len++;
   }
   
@@ -319,7 +365,7 @@ int PPPIPInterface::cleanupLink()
   len = 0;
   while( len < strlen(NO_CARRIER_RESP) )
   {
-   /* ret = m_pStream.read((uint8_t*)buf + len, &readLen, strlen(NO_CARRIER_RESP) - len, 100);
+    ret = m_pStream->read((uint8_t*)buf + len, &readLen, strlen(NO_CARRIER_RESP) - len, 100);
     if( ret != OK )
     {
       break;
@@ -327,8 +373,8 @@ int PPPIPInterface::cleanupLink()
     len += readLen;
     /////
     buf[len]=0;
-    DBG("Got %s", buf);*/
-    buf[len] = m_pStream.getc();
+    DBG("Got %s", buf);
+    buf[len] = m_pStream->getc();
     len++;
   }
   
@@ -336,9 +382,9 @@ int PPPIPInterface::cleanupLink()
   
   DBG("Got %s[len %d]", buf, len);
   
-  /*do //Clear buf
+  do //Clear buf
   {
-    ret = m_pStream.read((uint8_t*)buf, &len, 32, 100);
+    ret = m_pStream->read((uint8_t*)buf, &len, 32, 100);
     if(ret == OK)
     {
       buf[len] = '\0';
@@ -355,6 +401,7 @@ int PPPIPInterface::cleanupLink()
   PPPIPInterface* pIf = (PPPIPInterface*)ctx;
   struct ppp_addrs* addrs = (struct ppp_addrs*) arg;
 
+  pIf->m_pppErrCode = errCode;
   switch(errCode)
   {
   case PPPERR_NONE:
@@ -376,33 +423,40 @@ int PPPIPInterface::cleanupLink()
         
     pIf->setConnected(true);
     pIf->setIPAddress(inet_ntoa(addrs->our_ipaddr));
+    pIf->connectionCallback();
     break;
   case PPPERR_CONNECT: //Connection lost
     WARN("Connection lost/terminated");
     pIf->setConnected(false);
+    pIf->disconnectionCallback();
     break;
   case PPPERR_AUTHFAIL: //Authentication failed
     WARN("Authentication failed");
     pIf->setConnected(false);
+    pIf->disconnectionCallback();
     break;
   case PPPERR_PROTOCOL: //Protocol error
     WARN("Protocol error");
     pIf->setConnected(false);
+    pIf->disconnectionCallback();
     break;
   case PPPERR_USER:
     WARN("Disconnected by user");
     pIf->setConnected(false);
+    pIf->disconnectionCallback();
     break;
   default:
     WARN("Unknown error (%d)", errCode);
     pIf->setConnected(false);
+    pIf->disconnectionCallback();
     break;
   }
 
   /*pIf->m_linkStatusSphre.wait(0); //If previous event has not been handled, "delete" it now
   pIf->m_linkStatusSphre.release();*/
-  pIf->m_pppErrCode = errCode;
+  
 }
+
 
 //LwIP PPP implementation
 extern "C"
@@ -430,7 +484,7 @@ u32_t sio_write(sio_fd_t fd, u8_t *data, u32_t len)
   //ret = pIf->m_pStream->write(data, len, osWaitForever); //Blocks until all data is sent or an error happens
   int i = 0;
   while(i < len){
-     pIf->m_pStream.putc(data[i]);
+     pIf->m_pStream->putc(data[i]);
      i++;
   }
   return len;
