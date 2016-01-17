@@ -46,7 +46,7 @@ protected:
 */
 /** u-blox WCDMA modem (LISA-U200)
  */
-class FONA808: public CellularModem
+class FONA808
 {
 public:
   /** Create u-blox API instance
@@ -71,7 +71,7 @@ public:
      @param message The message to send
      @return 0 on success, error code on failure
    */
-//  virtual int sendSM(const char* number, const char* message);
+ // virtual int sendSM(const char* number, const char* message);
 
 
   /** Receive a SM

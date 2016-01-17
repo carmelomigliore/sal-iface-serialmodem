@@ -86,18 +86,20 @@ int FONA808::disconnect(){
 }
 
 bool FONA808::init(){
-  mSerial.baud(4800);
-  
+  mSerial.baud(115200);
+  printf("Ciao FONA808!\n");
   m_rst = 1;         //perform FONA reboot
   wait_ms(10);
   m_rst=0;
   wait_ms(100);
   m_rst = 1;
-
+  
   wait_ms(7000);   // wait for reboot
   
+  printf("Cleaning buffer\n");
   mSerial.cleanBuffer();
-
+  /*sendCheckReply("ATE0","OK");
+  wait_ms(100);*/
   sendCheckReply("AT", "OK",100);
   wait_ms(100);
   sendCheckReply("AT", "OK",100);
@@ -134,9 +136,9 @@ bool FONA808::sendParseReply(char* command, const char *toreply,
           uint16_t *v, char divider, uint8_t index, uint16_t timeout) { 
   char reply[32];
   mSerial.setTimeout(timeout/1000);
-  mSerial.printf(command);
+  mSerial.printf("%s\r\n",command);
   mSerial.readline((uint8_t*)reply,32); 
-  DBG("Got %s", reply);
+  printf("Got %s", reply);
   char *p = strstr(reply, toreply);  // get the pointer to the voltage
   if (p == 0) return false;
   p+=strlen(toreply);
@@ -161,8 +163,8 @@ int FONA808::cleanup(){
 bool FONA808::sendCheckReply(char* command, const char* reply, uint16_t timeout){
    char replybuf[48];
    mSerial.setTimeout(timeout/1000);
-   mSerial.printf(command);
+   mSerial.printf("%s\r\n",command);
    mSerial.readline((uint8_t*)replybuf,48);  
-   DBG("Got %s", replybuf);
+   printf("Got %s", replybuf);
    return strncmp(replybuf,reply,strlen(reply)) == 0;
 }

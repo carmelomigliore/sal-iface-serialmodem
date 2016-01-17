@@ -527,19 +527,12 @@ u32_t sio_read(sio_fd_t fd, u8_t *data, u32_t len)
  *
  * @param fd serial device handle
  */
-/*
+
 void sio_read_abort(sio_fd_t fd)
 {
-  DBG("sio_read_abort");
-  PPPIPInterface* pIf = (PPPIPInterface*)fd;
-  if(!pIf->m_streamAvail) //If stream is not available (it is a shared resource) don't go further
-  {
-    return;
-  }
-  pIf->m_pStream->abortRead();
-  DBG("ret");
+ return;
 }
-*/
+
 
 }
 
