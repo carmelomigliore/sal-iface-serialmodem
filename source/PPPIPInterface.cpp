@@ -64,20 +64,20 @@ PPPIPInterface::PPPIPInterface(SerialBuffered* mSerial) : LwIPInterface(), m_ppp
 
 /*virtual*/ int PPPIPInterface::init() //Init PPP-specific stuff, create the right bindings, etc
 {
-  DBG("Initializing LwIP");
+  printf("Initializing LwIP");
   LwIPInterface::init(); //Init LwIP, NOT including PPP
-  DBG("Initializing PPP");
+  printf("Initializing PPP");
   pppInit();
-  DBG("Done");
+  printf("Done");
   return OK;
 }
 
 int PPPIPInterface::setup(const char* user, const char* pw, const char* msisdn)
 {
-  DBG("Configuring PPP authentication method");
+  printf("Configuring PPP authentication method\n");
   pppSetAuth(PPPAUTHTYPE_ANY, user, pw);
   m_msisdn = msisdn;
-  DBG("Done");
+  printf("Done\n");
   return OK;
 }
 
@@ -88,19 +88,19 @@ int PPPIPInterface::setup(const char* user, const char* pw, const char* msisdn)
   int cmdLen;
   char buf[32];
   size_t len;
-  DBG("Trying to connect with PPP");
+  printf("Trying to connect with PPP\n");
   
   cleanupLink();
   
   cmdLen = sprintf(cmd, "%s%s%s", CONNECT_CMD_PREFIX, m_msisdn, CONNECT_CMD_SUFFIX);
-  DBG("Sending %s", cmd);
+  printf("Sending %s", cmd);
   //ret = m_pStream->write((uint8_t*)cmd, cmdLen, osWaitForever);
   ret = m_pStream->printf("%s", cmd);
   if( ret < 0 )
   {
     return NET_UNKNOWN;
   }
-  
+  printf("Connected\n");
   len = 0;
   size_t readLen;
  /* while(m_pStream->available() && (buf[len]=m_pStream->getc()) != LF && len <EXPECTED_RESP_MIN_LEN){
@@ -123,16 +123,16 @@ int PPPIPInterface::setup(const char* user, const char* pw, const char* msisdn)
     len += readLen;
   }
   */
-
-  m_pStream->setTimeout(10);
+  printf("Trying to read response\n");
+  m_pStream->setTimeout(10000);
   len = m_pStream->readBytes((uint8_t*)buf,EXPECTED_RESP_MIN_LEN);
   
   buf[len]=0;
   
-  DBG("Got %s[len %d]", buf, len);
+  printf("Got %s[len %d]\n", buf, len);
   
   int datarate = 0;
-  strcpy(&cmd[cmdLen], EXPECTED_RESP_DATARATE_SUFFIX);
+ /* strcpy(&cmd[cmdLen], EXPECTED_RESP_DATARATE_SUFFIX);
   if( (sscanf(buf, cmd, &datarate ) != 1)) 
   {
     strcpy(&cmd[cmdLen], EXPECTED_RESP_SUFFIX);
@@ -142,20 +142,22 @@ int PPPIPInterface::setup(const char* user, const char* pw, const char* msisdn)
       m_pStream->cleanBuffer();
       return NET_CONN;
     }
-  }    
-  
-  DBG("Transport link open");
+  }   */ 
+  m_pStream->cleanBuffer();
+  printf("Transport link open\n");
   if(datarate != 0)
   {
-    DBG("Datarate: %d bps", datarate);
+    printf("Datarate: %d bps\n", datarate);
   }
   //m_linkStatusSphre.wait(0);
   if((m_pppd != -1) && (m_pppErrCode == 0)) //Already connected
   {
     return NET_INVALID;
   }
-  
+  //__disable_irq();
   ret = pppOverSerialOpen(this, PPPIPInterface::linkStatusCb, this);
+  //__enable_irq();
+  printf("PPPoverSerial %d\n",ret);
   if(ret < 0)
   {
     switch(ret)
@@ -165,11 +167,11 @@ int PPPIPInterface::setup(const char* user, const char* pw, const char* msisdn)
       return NET_FULL; //All available resources are already used
     }
   }
+  mbed::util::FunctionPointer0<void> ptr(this,&PPPIPInterface::pppReadRoutine);
+  pppReadHandle = minar::Scheduler::postCallback(ptr.bind()).period(minar::milliseconds(500)).getHandle();
   m_pppd = ret; 
-
+  return 0;
   // TODO: set event for connection / disconnection (callback)
-
-  return OK;
 
   //PPP descriptor
   //m_linkStatusSphre.wait(); //Block indefinitely; there should be a timeout there
@@ -193,9 +195,8 @@ int PPPIPInterface::setup(const char* user, const char* pw, const char* msisdn)
 }
 
 void PPPIPInterface::connectionCallback(){
-
-  mbed::util::FunctionPointer0<void> ptr(this,&PPPIPInterface::pppReadRoutine);
-  pppReadHandle = minar::Scheduler::postCallback(ptr.bind()).period(minar::milliseconds(500)).getHandle();
+  printf("ConnCallback\n");
+  
 }
 
 /*virtual*/ int PPPIPInterface::disconnect()
@@ -227,12 +228,12 @@ void PPPIPInterface::connectionCallback(){
   /*  do
     {
      // m_linkStatusSphre.wait(); //Block indefinitely; there should be a timeout there
-      DBG("Received PPP err code %d", m_pppErrCode);
+      printf("Received PPP err code %d", m_pppErrCode);
     } while(m_pppErrCode != PPPERR_USER);
     m_pppd = -1; //Discard PPP descriptor
   }
   
-  DBG("Sending %s", ESCAPE_SEQ);
+  printf("Sending %s", ESCAPE_SEQ);
   
  // ret = m_pStream->write((uint8_t*)ESCAPE_SEQ, strlen(ESCAPE_SEQ), osWaitForever);
   ret = m_pStream->printf(ESCAPE_SEQ);
@@ -251,9 +252,11 @@ void PPPIPInterface::connectionCallback(){
  */
 
 void PPPIPInterface::pppReadRoutine(){
+  printf("\npppReadRoutine");
   uint8_t buffer[256];
-  m_pStream->setTimeout(0.1);
+  m_pStream->setTimeout(100);
   int read = m_pStream->readBytes(buffer,256);
+  printf("\nRead = %d",read);
   if(read>0){
     pppos_input(m_pppd, buffer,read);
   }
@@ -261,7 +264,7 @@ void PPPIPInterface::pppReadRoutine(){
 
 void PPPIPInterface::disconnectionCallback(){
   minar::Scheduler::cancelCallback(pppReadHandle);
-  DBG("Sending %s", ESCAPE_SEQ);
+  printf("Sending %s", ESCAPE_SEQ);
  
  // ret = m_pStream->write((uint8_t*)ESCAPE_SEQ, strlen(ESCAPE_SEQ), osWaitForever);
  int ret = m_pStream->printf(ESCAPE_SEQ);
@@ -292,7 +295,7 @@ int PPPIPInterface::cleanupLink()
     if(ret == OK)
     {
       buf[len] = '\0';
-      DBG("Got %s", buf);
+      printf("Got %s", buf);
     }
   } while( (ret == OK) && (len > 0) );*/
 
@@ -300,7 +303,7 @@ int PPPIPInterface::cleanupLink()
 
   m_pStream->cleanBuffer();
   
-  DBG("Sending %s", HANGUP_CMD);
+  printf("Sending %s\n", HANGUP_CMD);
   
   //ret = m_pStream->write((uint8_t*)HANGUP_CMD, strlen(HANGUP_CMD), osWaitForever);
   ret = m_pStream->printf(HANGUP_CMD);
@@ -312,7 +315,7 @@ int PPPIPInterface::cleanupLink()
  /* size_t readLen;
   
   //Hangup
-  DBG("Expect %s", HANGUP_CMD);
+  printf("Expect %s", HANGUP_CMD);
 
   len = 0;
   while( len < strlen(HANGUP_CMD) )
@@ -324,7 +327,7 @@ int PPPIPInterface::cleanupLink()
     }
     len += readLen;
    buf[len]=0;
-   DBG("Got %s", buf);
+   printf("Got %s", buf);
     buf[len] = m_pStream->getc();
     len++;
     /////
@@ -334,10 +337,10 @@ int PPPIPInterface::cleanupLink()
   
   buf[len]=0;
   
-  DBG("Got %s[len %d]", buf, len);
+  printf("Got %s[len %d]", buf, len);
   
   //OK response
-  DBG("Expect %s", OK_RESP);
+  printf("Expect %s", OK_RESP);
 
   len = 0;
   while( len < strlen(OK_RESP) )
@@ -350,17 +353,17 @@ int PPPIPInterface::cleanupLink()
     len += readLen;
     /////
     buf[len]=0;
-    DBG("Got %s", buf);
+    printf("Got %s", buf);
     buf[len] = m_pStream->getc();
     len++;
   }
   
   buf[len]=0;
   
-  DBG("Got %s[len %d]", buf, len);
+  printf("Got %s[len %d]", buf, len);
   
   //NO CARRIER event
-  DBG("Expect %s", NO_CARRIER_RESP);
+  printf("Expect %s", NO_CARRIER_RESP);
 
   len = 0;
   while( len < strlen(NO_CARRIER_RESP) )
@@ -373,14 +376,14 @@ int PPPIPInterface::cleanupLink()
     len += readLen;
     /////
     buf[len]=0;
-    DBG("Got %s", buf);
+    printf("Got %s", buf);
     buf[len] = m_pStream->getc();
     len++;
   }
   
   buf[len]=0;
   
-  DBG("Got %s[len %d]", buf, len);
+  printf("Got %s[len %d]", buf, len);
   
   do //Clear buf
   {
@@ -388,7 +391,7 @@ int PPPIPInterface::cleanupLink()
     if(ret == OK)
     {
       buf[len] = '\0';
-      DBG("Got %s", buf);
+      printf("Got %s", buf);
     }
   } while( (ret == OK) && (len > 0) );*/
   
@@ -398,6 +401,7 @@ int PPPIPInterface::cleanupLink()
 
 /*static*/ void PPPIPInterface::linkStatusCb(void *ctx, int errCode, void *arg) //PPP link status
 {
+  printf("Status callback, error code: %d",errCode);
   PPPIPInterface* pIf = (PPPIPInterface*)ctx;
   struct ppp_addrs* addrs = (struct ppp_addrs*) arg;
 
@@ -406,11 +410,11 @@ int PPPIPInterface::cleanupLink()
   {
   case PPPERR_NONE:
     WARN("Connected via PPP.");
-    DBG("Local IP address: %s", inet_ntoa(addrs->our_ipaddr));
-    DBG("Netmask: %s", inet_ntoa(addrs->netmask));
-    DBG("Remote IP address: %s", inet_ntoa(addrs->his_ipaddr));
-    DBG("Primary DNS: %s", inet_ntoa(addrs->dns1));
-    DBG("Secondary DNS: %s", inet_ntoa(addrs->dns2));
+    printf("Local IP address: %s", inet_ntoa(addrs->our_ipaddr));
+    printf("Netmask: %s", inet_ntoa(addrs->netmask));
+    printf("Remote IP address: %s", inet_ntoa(addrs->his_ipaddr));
+    printf("Primary DNS: %s", inet_ntoa(addrs->dns1));
+    printf("Secondary DNS: %s", inet_ntoa(addrs->dns2));
     //Setup DNS
     if (addrs->dns1.addr != 0)
     {
@@ -474,7 +478,7 @@ extern "C"
  */
 u32_t sio_write(sio_fd_t fd, u8_t *data, u32_t len)
 {
-  DBG("sio_write");
+  printf("sio_write\n");
   PPPIPInterface* pIf = (PPPIPInterface*)fd;
   int ret;
   if(!pIf->m_streamAvail) //If stream is not available (it is a shared resource) don't go further
@@ -487,6 +491,7 @@ u32_t sio_write(sio_fd_t fd, u8_t *data, u32_t len)
      pIf->m_pStream->putc(data[i]);
      i++;
   }
+   printf("Written %d bytes\n",len);
   return len;
 }
 
@@ -504,7 +509,7 @@ u32_t sio_write(sio_fd_t fd, u8_t *data, u32_t len)
 /*
 u32_t sio_read(sio_fd_t fd, u8_t *data, u32_t len)
 {
-  DBG("sio_read");
+  printf("sio_read");
   PPPIPInterface* pIf = (PPPIPInterface*)fd;
   int ret;
   size_t readLen;
@@ -518,7 +523,7 @@ u32_t sio_read(sio_fd_t fd, u8_t *data, u32_t len)
   {
     return 0;
   }
-  DBG("ret");
+  printf("ret");
   return readLen;
 }
 */

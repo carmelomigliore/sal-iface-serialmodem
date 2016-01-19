@@ -4,7 +4,7 @@
  
 //extern Serial loggerSerial;
  
-SerialBuffered::SerialBuffered( size_t bufferSize, PinName tx, PinName rx ) : Serial(  tx,  rx ), loggerSerial(USBTX,USBRX) 
+SerialBuffered::SerialBuffered( size_t bufferSize, PinName tx, PinName rx ) : RawSerial(  tx,  rx ), loggerSerial(USBTX,USBRX) 
 {
     m_buffSize = 0;
     m_contentStart = 0;
@@ -12,8 +12,9 @@ SerialBuffered::SerialBuffered( size_t bufferSize, PinName tx, PinName rx ) : Se
     m_timeout = 1.0;
    
     
-    attach( this, &SerialBuffered::handleInterrupt );
-    
+    attach( this, &SerialBuffered::handleInterrupt, RxIrq );
+    //attach( this, &SerialBuffered::dummy, TxIrq );
+   
     m_buff = (uint8_t *) malloc( bufferSize );
     if( m_buff == NULL )
     {
@@ -32,9 +33,9 @@ SerialBuffered::~SerialBuffered()
         free( m_buff );
 }
 
-void SerialBuffered::setTimeout( float seconds )
+void SerialBuffered::setTimeout( int milliseconds )
 {
-    m_timeout = seconds;
+    m_timeout = milliseconds;
 }
     
 size_t SerialBuffered::readBytes( uint8_t *bytes, size_t requested )
@@ -83,24 +84,22 @@ size_t SerialBuffered::readline( uint8_t *bytes, size_t requested )
 
 int SerialBuffered::getc()
 {
+   //static DigitalOut led(LED2);
     m_timer.reset();
     m_timer.start();
     while( m_contentStart == m_contentEnd )
     {
-      
-
         wait_ms( 1 );
-        if( m_timeout > 0 &&  m_timer.read() > m_timeout )
+        if( m_timeout > 0 &&  m_timer.read_ms() > m_timeout )
             return EOF;
     }
-
     m_timer.stop();
    
     uint8_t result = m_buff[m_contentStart++];
     m_contentStart =  m_contentStart % m_buffSize;
-
+ 
    
-    return result;    
+    return result;
 }
 
 void SerialBuffered:: cleanBuffer()
@@ -119,24 +118,30 @@ int SerialBuffered::readable()
 
 void SerialBuffered::handleInterrupt()
 {
-    
-    while( Serial::readable())
+   __disable_irq();
+    static DigitalOut led(LED2);
+    led=!led;
+    while( RawSerial::readable())
     {
         if( m_contentStart == (m_contentEnd +1) % m_buffSize)
         {
            loggerSerial.printf("SerialBuffered - buffer overrun, data lost!\r\n" );
-           Serial::getc();
+           RawSerial::getc();
 
         }
         else
         {
           
-            m_buff[ m_contentEnd ++ ] = Serial::getc();
+            m_buff[ m_contentEnd ++ ] = RawSerial::getc();
             m_contentEnd = m_contentEnd % m_buffSize;
             
            
            
         }
     }
+    led=!led;
+   __enable_irq();
 }
+
+
 

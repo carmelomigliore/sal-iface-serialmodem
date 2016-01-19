@@ -31,6 +31,11 @@ FONA808::FONA808(PinName Tx, PinName Rx, PinName rst):m_ipInit(false),mSerial(25
 
 int FONA808::connect(const char* apn, const char* user, const char* password){
  //TODO controllare se FONA è stato inizializzato
+bool in = init();
+if(!in)
+  {
+    return -1;
+  }
  if( !m_ipInit )
   {
     m_ipInit = true;
@@ -38,11 +43,8 @@ int FONA808::connect(const char* apn, const char* user, const char* password){
   }
   m_ppp.setup(user, password, DEFAULT_MSISDN_GSM);
   
-  bool in = init();
-  if(!in)
-  {
-    return -1;
-  }
+  
+  
 /*
   if (m_onePort)
   {
@@ -66,18 +68,17 @@ int FONA808::connect(const char* apn, const char* user, const char* password){
       }
     } while(ret && --tries);*/
     if(!sendCheckReply(cmd,"OK",500)){
-	 DBG("ATResult: AT return=%d (code %d)", result.result, result.code);
-         DBG("APN set to %s", apn);
+	 //printf("ATResult: AT return=%d (code %d)", result.result, result.code);
+         printf("APN set to %s", apn);
     }
    
   }
 
   //Connect
-  DBG("Connecting");
-  DBG("Connecting PPP");
+  printf("Connecting PPP");
 
   int ret = m_ppp.connect(); //TODO impostare callback per connessione
-  DBG("Result of connect: Err code=%d", ret);
+  //printf("Result of connect: Err code=%d", ret);
   return ret;
 }
 
@@ -98,20 +99,21 @@ bool FONA808::init(){
   
   printf("Cleaning buffer\n");
   mSerial.cleanBuffer();
+  printf("Buffer clean\n");
   /*sendCheckReply("ATE0","OK");
   wait_ms(100);*/
-  sendCheckReply("AT", "OK",100);
+  sendCheckReply("AT", "OK",500);
   wait_ms(100);
-  sendCheckReply("AT", "OK",100);
+  sendCheckReply("AT", "OK",500);
   wait_ms(100);
-  sendCheckReply("AT", "OK",100);
+  sendCheckReply("AT", "OK",500);
   wait_ms(100);
 
   // turn off Echo!
-  sendCheckReply("ATE0", "OK",100);
+  sendCheckReply("ATE0", "OK",5000);
   wait_ms(100);
 
-  if (! sendCheckReply("ATE0", "OK",100)) {
+  if (! sendCheckReply("ATE0", "OK",5000)) {
     return false;
   }
 
@@ -119,6 +121,8 @@ bool FONA808::init(){
 	printf("Not registered to network yet\n");
         wait_ms(500);
  }
+
+printf("Registered to network!\n");
 
  return true;
   
@@ -128,15 +132,18 @@ uint8_t FONA808::getNetworkStatus(void) {
   uint16_t status;
 
   if (! sendParseReply("AT+CREG?", "+CREG: ", &status, ',', 1, 500)) return 0;
-
+  printf("Status = %d",status);
   return status;
 }
 
 bool FONA808::sendParseReply(char* command, const char *toreply,
           uint16_t *v, char divider, uint8_t index, uint16_t timeout) { 
   char reply[32];
-  mSerial.setTimeout(timeout/1000);
+  mSerial.setTimeout(timeout);
+  printf("Sending %s\r\n",command);
+  //__disable_irq();
   mSerial.printf("%s\r\n",command);
+  //__enable_irq();
   mSerial.readline((uint8_t*)reply,32); 
   printf("Got %s", reply);
   char *p = strstr(reply, toreply);  // get the pointer to the voltage
@@ -152,7 +159,6 @@ bool FONA808::sendParseReply(char* command, const char *toreply,
 
   }
   *v = atoi(p);
-
   return true;
 }
 
@@ -160,11 +166,19 @@ int FONA808::cleanup(){
   return 0;
 }
 
-bool FONA808::sendCheckReply(char* command, const char* reply, uint16_t timeout){
+bool FONA808::sendCheckReply(const char* command, const char* reply, uint16_t timeout){
+   
+   printf("SendCheckReply\n");
    char replybuf[48];
-   mSerial.setTimeout(timeout/1000);
+   printf("SetTimeout\n");
+   mSerial.setTimeout(timeout);
+   printf("Sending %s\r\n",command);
+   //__disable_irq();
    mSerial.printf("%s\r\n",command);
+   //__enable_irq();
+   printf("la bomba\n");
    mSerial.readline((uint8_t*)replybuf,48);  
    printf("Got %s", replybuf);
+   printf("baboomba\n");
    return strncmp(replybuf,reply,strlen(reply)) == 0;
 }

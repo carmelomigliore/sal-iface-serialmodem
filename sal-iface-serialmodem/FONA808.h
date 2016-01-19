@@ -133,7 +133,7 @@ public:
   /** 
    * send an AT command and check the reply
    */
-  bool sendCheckReply(char* command, const char* expected, uint16_t timeout);
+  bool sendCheckReply(const char* command, const char* expected, uint16_t timeout);
 
 private:
   SerialBuffered mSerial;    // Serial to which FONA is connected
