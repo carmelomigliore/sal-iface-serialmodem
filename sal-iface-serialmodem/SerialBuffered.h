@@ -28,6 +28,8 @@ public:
     size_t readline( uint8_t *bytes, size_t requested );
 
     void cleanBuffer();
+    void setPppOpen(int pppd, bool pppOpen);
+    void sendToPpp();
     
 
 private:
@@ -37,11 +39,14 @@ private:
     
    
     uint8_t *m_buff;            // points at a circular buffer, containing data from m_contentStart, for m_contentSize bytes, wrapping when you get to the end
+    uint8_t *m_pppbuf;
     uint16_t  m_contentStart;   // index of first bytes of content
     uint16_t  m_contentEnd;     // index of bytes after last byte of content
     uint16_t m_buffSize;
     int m_timeout;
     Timer m_timer;
     Serial loggerSerial;
+    bool isPppOpen;
+    int m_pppd;
 
 };

@@ -156,19 +156,22 @@ int PPPIPInterface::setup(const char* user, const char* pw, const char* msisdn)
   }
   //__disable_irq();
   ret = pppOverSerialOpen(this, PPPIPInterface::linkStatusCb, this);
-  //__enable_irq();
-  printf("PPPoverSerial %d\n",ret);
   if(ret < 0)
   {
     switch(ret)
     {
     case PPPERR_OPEN:
     default:
+     // __enable_irq();
       return NET_FULL; //All available resources are already used
     }
   }
-  mbed::util::FunctionPointer0<void> ptr(this,&PPPIPInterface::pppReadRoutine);
-  pppReadHandle = minar::Scheduler::postCallback(ptr.bind()).period(minar::milliseconds(500)).getHandle();
+  m_pStream->setPppOpen(ret, true);
+  //__enable_irq();
+  printf("PPPoverSerial %d\n",ret);
+  
+  //mbed::util::FunctionPointer0<void> ptr(this,&PPPIPInterface::pppReadRoutine);
+  //pppReadHandle = minar::Scheduler::postCallback(ptr.bind()).period(minar::milliseconds(500)).getHandle();
   m_pppd = ret; 
   return 0;
   // TODO: set event for connection / disconnection (callback)
@@ -263,7 +266,7 @@ void PPPIPInterface::pppReadRoutine(){
 }
 
 void PPPIPInterface::disconnectionCallback(){
-  minar::Scheduler::cancelCallback(pppReadHandle);
+  //minar::Scheduler::cancelCallback(pppReadHandle);
   printf("Sending %s", ESCAPE_SEQ);
  
  // ret = m_pStream->write((uint8_t*)ESCAPE_SEQ, strlen(ESCAPE_SEQ), osWaitForever);
@@ -487,10 +490,12 @@ u32_t sio_write(sio_fd_t fd, u8_t *data, u32_t len)
   }
   //ret = pIf->m_pStream->write(data, len, osWaitForever); //Blocks until all data is sent or an error happens
   int i = 0;
+  __disable_irq();
   while(i < len){
      pIf->m_pStream->putc(data[i]);
      i++;
   }
+  __enable_irq();
    printf("Written %d bytes\n",len);
   return len;
 }
