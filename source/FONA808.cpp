@@ -25,7 +25,7 @@
 #include "FONA808.h"
 #include <cstring>
 
-FONA808::FONA808(PinName Tx, PinName Rx, PinName rst):m_ipInit(false),mSerial(256,Tx,Rx),m_ppp(&mSerial),m_rst(rst) {
+FONA808::FONA808(PinName Tx, PinName Rx, PinName rst):m_ipInit(false),mSerial(1500,Tx,Rx),m_ppp(&mSerial),m_rst(rst) {
 
 }
 
@@ -43,7 +43,7 @@ if(!in)
   }
   m_ppp.setup(user, password, DEFAULT_MSISDN_GSM);
   
-  
+  printf("Birra\n");
   
 /*
   if (m_onePort)
@@ -87,7 +87,7 @@ int FONA808::disconnect(){
 }
 
 bool FONA808::init(){
-  mSerial.baud(115200);
+  mSerial.baud(57600);
   printf("Ciao FONA808!\n");
   m_rst = 1;         //perform FONA reboot
   wait_ms(10);

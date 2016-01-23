@@ -8,7 +8,7 @@ extern "C" {
 #include "ppp.h"
 }
 
-SerialBuffered::SerialBuffered( size_t bufferSize, PinName tx, PinName rx ) : RawSerial(  tx,  rx ), loggerSerial(USBTX,USBRX), isPppOpen(false), m_pppd(-1) 
+SerialBuffered::SerialBuffered( size_t bufferSize, PinName tx, PinName rx ) : RawSerial(  tx,  rx ), loggerSerial(USBTX,USBRX), isPppOpen(false), isPppRoutineScheduled(false), m_pppd(-1), butt(USER_BUTTON) 
 {
     m_buffSize = 0;
     m_contentStart = 0;
@@ -17,10 +17,11 @@ SerialBuffered::SerialBuffered( size_t bufferSize, PinName tx, PinName rx ) : Ra
    
     
     attach( this, &SerialBuffered::handleInterrupt, RxIrq );
-    //attach( this, &SerialBuffered::dummy, TxIrq );
+    attach( NULL, TxIrq );
+    butt.fall(this, &SerialBuffered::sendToPpp);
    
     m_buff = (uint8_t *) malloc( bufferSize );
-    m_pppbuf = (uint8_t *) malloc(1024);
+    m_pppbuf = (uint8_t *) malloc(1500);
     if( m_buff == NULL )
     {
         loggerSerial.printf("SerialBuffered - failed to alloc buffer size %d\r\n", (int) bufferSize );
@@ -118,13 +119,14 @@ void SerialBuffered:: cleanBuffer()
 }
 
 void SerialBuffered::sendToPpp(){
-  loggerSerial.printf("\npppReadRoutine");
-  uint8_t buffer[256];
+  //loggerSerial.printf("\npppReadRoutine");
+  //uint8_t buffer[256];
+  isPppRoutineScheduled = false;
   setTimeout(100);
-  int read = readBytes(buffer,256);
+  int read = readBytes(m_pppbuf,1500);
   loggerSerial.printf("\nRead = %d",read);
   if(read>0 && m_pppd != -1){
-    pppos_input(m_pppd, buffer,read);
+    pppos_input(m_pppd, m_pppbuf,read);
   }
 }
 
@@ -142,6 +144,7 @@ int SerialBuffered::readable()
 void SerialBuffered::handleInterrupt()
 {
    __disable_irq();
+   int count = 0;
     while( RawSerial::readable())
     {
 	if( m_contentStart == (m_contentEnd +1) % m_buffSize)
@@ -153,11 +156,13 @@ void SerialBuffered::handleInterrupt()
 	{
 	    m_buff[ m_contentEnd ++ ] = RawSerial::getc();
 	    m_contentEnd = m_contentEnd % m_buffSize;
+            count++;
 	}
     }
-    if(isPppOpen){
+    if(isPppOpen && count > 0 && !isPppRoutineScheduled){
           mbed::util::FunctionPointer0<void> ptr(this,&SerialBuffered::sendToPpp);
           minar::Scheduler::postCallback(ptr.bind());
+	  isPppRoutineScheduled = true;
     }
    __enable_irq();
 }

@@ -256,9 +256,9 @@ void PPPIPInterface::connectionCallback(){
 
 void PPPIPInterface::pppReadRoutine(){
   printf("\npppReadRoutine");
-  uint8_t buffer[256];
+  uint8_t buffer[512];
   m_pStream->setTimeout(100);
-  int read = m_pStream->readBytes(buffer,256);
+  int read = m_pStream->readBytes(buffer,512);
   printf("\nRead = %d",read);
   if(read>0){
     pppos_input(m_pppd, buffer,read);
@@ -490,12 +490,12 @@ u32_t sio_write(sio_fd_t fd, u8_t *data, u32_t len)
   }
   //ret = pIf->m_pStream->write(data, len, osWaitForever); //Blocks until all data is sent or an error happens
   int i = 0;
-  __disable_irq();
+ // __disable_irq();
   while(i < len){
      pIf->m_pStream->putc(data[i]);
      i++;
   }
-  __enable_irq();
+ // __enable_irq();
    printf("Written %d bytes\n",len);
   return len;
 }

@@ -47,6 +47,8 @@ private:
     Timer m_timer;
     Serial loggerSerial;
     bool isPppOpen;
+    bool isPppRoutineScheduled;
     int m_pppd;
+    InterruptIn butt;
 
 };
