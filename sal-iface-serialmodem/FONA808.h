@@ -128,8 +128,9 @@ public:
   int cleanup();
 
   uint8_t getNetworkStatus();
-
-
+  bool isConnected();
+  bool enableGPS(bool enable);
+  char* getGPSCoordinates();
   /** 
    * send an AT command and check the reply
    */

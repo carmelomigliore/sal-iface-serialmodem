@@ -124,14 +124,15 @@ int PPPIPInterface::setup(const char* user, const char* pw, const char* msisdn)
   }
   */
   printf("Trying to read response\n");
-  m_pStream->setTimeout(10000);
+  m_pStream->setTimeout(15000);
   len = m_pStream->readBytes((uint8_t*)buf,EXPECTED_RESP_MIN_LEN);
   
   buf[len]=0;
   
   printf("Got %s[len %d]\n", buf, len);
   
-  int datarate = 0;
+  //int datarate = 0;
+  
  /* strcpy(&cmd[cmdLen], EXPECTED_RESP_DATARATE_SUFFIX);
   if( (sscanf(buf, cmd, &datarate ) != 1)) 
   {
@@ -143,12 +144,17 @@ int PPPIPInterface::setup(const char* user, const char* pw, const char* msisdn)
       return NET_CONN;
     }
   }   */ 
+  
+  if(strstr(buf,"CONNECT") == NULL){
+	return NET_TIMEOUT;
+  }  
+
   m_pStream->cleanBuffer();
   printf("Transport link open\n");
-  if(datarate != 0)
+  /*if(datarate != 0)
   {
     printf("Datarate: %d bps\n", datarate);
-  }
+  }*/
   //m_linkStatusSphre.wait(0);
   if((m_pppd != -1) && (m_pppErrCode == 0)) //Already connected
   {
@@ -173,7 +179,7 @@ int PPPIPInterface::setup(const char* user, const char* pw, const char* msisdn)
   //mbed::util::FunctionPointer0<void> ptr(this,&PPPIPInterface::pppReadRoutine);
   //pppReadHandle = minar::Scheduler::postCallback(ptr.bind()).period(minar::milliseconds(500)).getHandle();
   m_pppd = ret; 
-  return 0;
+  return OK;
   // TODO: set event for connection / disconnection (callback)
 
   //PPP descriptor
@@ -254,7 +260,7 @@ void PPPIPInterface::connectionCallback(){
  * To be scheduled periodically 
  */
 
-void PPPIPInterface::pppReadRoutine(){
+/*void PPPIPInterface::pppReadRoutine(){
   printf("\npppReadRoutine");
   uint8_t buffer[512];
   m_pStream->setTimeout(100);
@@ -263,6 +269,10 @@ void PPPIPInterface::pppReadRoutine(){
   if(read>0){
     pppos_input(m_pppd, buffer,read);
   }
+}*/
+
+bool PPPIPInterface::isPPPLinkOpen(){
+	return m_pppd != -1;
 }
 
 void PPPIPInterface::disconnectionCallback(){
@@ -275,7 +285,6 @@ void PPPIPInterface::disconnectionCallback(){
   {
     return;
   }
-
   m_pppd = -1; //discard ppp descriptor
   
   cleanupLink();

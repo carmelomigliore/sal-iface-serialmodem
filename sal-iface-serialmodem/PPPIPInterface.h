@@ -44,11 +44,11 @@ public:
     virtual int connect();
     virtual int disconnect();
     int getPPPErrorCode();
-
+    bool isPPPLinkOpen();
 private:
     int cleanupLink();
 
-    void pppReadRoutine();
+    //void pppReadRoutine();
     void disconnectionCallback();
     void connectionCallback();
     static void linkStatusCb(void *ctx, int errCode, void *arg); //PPP link status
@@ -58,9 +58,8 @@ private:
     SerialBuffered* m_pStream; //Serial stream
     bool m_streamAvail;
     const char* m_msisdn;
-
     int m_pppd;
-    minar::callback_handle_t pppReadHandle; //
+    //minar::callback_handle_t pppReadHandle; //
 
     friend u32_t sio_write(sio_fd_t fd, u8_t *data, u32_t len);
     /*friend u32_t sio_read(sio_fd_t fd, u8_t *data, u32_t len);

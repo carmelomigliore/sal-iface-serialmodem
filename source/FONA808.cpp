@@ -30,7 +30,6 @@ FONA808::FONA808(PinName Tx, PinName Rx, PinName rst):m_ipInit(false),mSerial(15
 }
 
 int FONA808::connect(const char* apn, const char* user, const char* password){
- //TODO controllare se FONA è stato inizializzato
 bool in = init();
 if(!in)
   {
@@ -82,50 +81,82 @@ if(!in)
   return ret;
 }
 
+bool FONA808::isConnected(){
+	return m_ppp.isConnected();
+}
+
 int FONA808::disconnect(){
    return 0;
 }
 
 bool FONA808::init(){
-  mSerial.baud(57600);
+  mSerial.baud(115200);
   printf("Ciao FONA808!\n");
   m_rst = 1;         //perform FONA reboot
-  wait_ms(10);
+  wait_ms(100);
   m_rst=0;
   wait_ms(100);
   m_rst = 1;
   
-  wait_ms(7000);   // wait for reboot
+  wait_ms(10000);   // wait for reboot
   
   printf("Cleaning buffer\n");
   mSerial.cleanBuffer();
   printf("Buffer clean\n");
-  /*sendCheckReply("ATE0","OK");
-  wait_ms(100);*/
-  sendCheckReply("AT", "OK",500);
-  wait_ms(100);
-  sendCheckReply("AT", "OK",500);
-  wait_ms(100);
-  sendCheckReply("AT", "OK",500);
-  wait_ms(100);
+  
+  for(int tries=0; tries < 3; tries++){
+	  sendCheckReply("AT", "OK",500);
+	  wait_ms(100);
+	  sendCheckReply("AT", "OK",500);
+	  wait_ms(100);
+	  sendCheckReply("AT", "OK",500);
+	  wait_ms(100);
 
-  // turn off Echo!
-  sendCheckReply("ATE0", "OK",5000);
-  wait_ms(100);
+	  // turn off Echo!
+	  sendCheckReply("ATE0", "OK",5000);
+	  wait_ms(100);
 
-  if (! sendCheckReply("ATE0", "OK",5000)) {
-    return false;
+	  if (! sendCheckReply("ATE0", "OK",5000)) {
+	    continue;
+	  }
+
+	  if(getNetworkStatus()!=1){
+		printf("Not registered to network yet\n");
+		wait_ms(500);
+		continue;
+	 }
+	 return true;
+ }
+  printf("Max num tries!\n");
+
+  return false;
+  
+}
+
+bool FONA808::enableGPS(bool enable){
+  if(m_ppp.isPPPLinkOpen()){ //TODO mPPPOpen su serialbuffered ??
+	wait_ms(1000);
+	mSerial.printf("+++");
+	wait_ms(1000);
   }
 
-  while(getNetworkStatus()!=1){
-	printf("Not registered to network yet\n");
-        wait_ms(500);
- }
-
-printf("Registered to network!\n");
-
- return true;
+  uint16_t state;
+  if (! sendParseReply("AT+CGPSPWR?","+CGPSPWR: ", &state,',',0,500))
+      return false;
   
+
+  if (enable && !state) {
+     if (! sendCheckReply("AT+CGPSPWR=1", "OK",500))
+	return false;
+  } else if (!enable && state) {
+    if (! sendCheckReply("AT+CGPSPWR=0", "OK",500))
+	return false;
+  }
+
+  if(m_ppp.isPPPLinkOpen()){
+	sendCheckReply("ATO","CONNECT",500);
+  }
+  return true;
 }
 
 uint8_t FONA808::getNetworkStatus(void) {
@@ -168,15 +199,15 @@ int FONA808::cleanup(){
 
 bool FONA808::sendCheckReply(const char* command, const char* reply, uint16_t timeout){
    
-   printf("SendCheckReply\n");
+  // printf("SendCheckReply\n");
    char replybuf[48];
-   printf("SetTimeout\n");
+   //printf("SetTimeout\n");
    mSerial.setTimeout(timeout);
    printf("Sending %s\r\n",command);
    //__disable_irq();
    mSerial.printf("%s\r\n",command);
    //__enable_irq();
-   printf("la bomba\n");
+   //printf("la bomba\n");
    mSerial.readline((uint8_t*)replybuf,48);  
    printf("Got %s", replybuf);
    printf("baboomba\n");
