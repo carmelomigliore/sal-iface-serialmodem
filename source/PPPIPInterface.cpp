@@ -54,12 +54,14 @@ extern "C" {
 PPPIPInterface::PPPIPInterface(SerialBuffered* mSerial) : LwIPInterface(), m_pppErrCode(0), m_streamAvail(true), m_pppd(-1)
 {
     m_pStream = mSerial;
+    m_pppbuf = (uint8_t*)malloc(1500);
 }
 
 
 
 /*virtual*/ PPPIPInterface::~PPPIPInterface()
 {
+	free(m_pppbuf);
 }
 
 /*virtual*/ int PPPIPInterface::init() //Init PPP-specific stuff, create the right bindings, etc
@@ -77,6 +79,7 @@ int PPPIPInterface::setup(const char* user, const char* pw, const char* msisdn)
   printf("Configuring PPP authentication method\n");
   pppSetAuth(PPPAUTHTYPE_ANY, user, pw);
   m_msisdn = msisdn;
+  m_pStream->setPppInstance(this);
   printf("Done\n");
   return OK;
 }
@@ -172,7 +175,8 @@ int PPPIPInterface::setup(const char* user, const char* pw, const char* msisdn)
       return NET_FULL; //All available resources are already used
     }
   }
-  m_pStream->setPppOpen(ret, true);
+  //m_pStream->setPppOpen(true);
+ 
   //__enable_irq();
   printf("PPPoverSerial %d\n",ret);
   
@@ -260,16 +264,17 @@ void PPPIPInterface::connectionCallback(){
  * To be scheduled periodically 
  */
 
-/*void PPPIPInterface::pppReadRoutine(){
-  printf("\npppReadRoutine");
-  uint8_t buffer[512];
+void PPPIPInterface::sendToPpp(){
+  //loggerSerial.printf("\npppReadRoutine");
+  //uint8_t buffer[256];
+  m_pStream->resetPppReadScheduled();
   m_pStream->setTimeout(100);
-  int read = m_pStream->readBytes(buffer,512);
+  int read = m_pStream->readBytes(m_pppbuf,1500);
   printf("\nRead = %d",read);
-  if(read>0){
-    pppos_input(m_pppd, buffer,read);
+  if(read>0 && m_pppd != -1){
+    pppos_input(m_pppd, m_pppbuf,read);
   }
-}*/
+}
 
 bool PPPIPInterface::isPPPLinkOpen(){
 	return m_pppd != -1;

@@ -6,6 +6,7 @@
 // expect your program to receive in one go.
 
 #include "mbed-drivers/mbed.h"
+#include "PPPIPInterface.h"
 
 class SerialBuffered : public RawSerial
 {
@@ -28,8 +29,10 @@ public:
     size_t readline( uint8_t *bytes, size_t requested );
 
     void cleanBuffer();
-    void setPppOpen(int pppd, bool pppOpen);
-    void sendToPpp();
+    void setPppPause(bool pause);
+    void setPppInstance(PPPIPInterface* instance);
+    void resetPppReadScheduled();
+   // void sendToPpp();
     
 
 private:
@@ -39,7 +42,6 @@ private:
     
    
     uint8_t *m_buff;            // points at a circular buffer, containing data from m_contentStart, for m_contentSize bytes, wrapping when you get to the end
-    uint8_t *m_pppbuf;
     uint16_t  m_contentStart;   // index of first bytes of content
     uint16_t  m_contentEnd;     // index of bytes after last byte of content
     uint16_t m_buffSize;
@@ -48,7 +50,9 @@ private:
     Serial loggerSerial;
     bool isPppOpen;
     bool isPppRoutineScheduled;
-    int m_pppd;
-    InterruptIn butt;
+    bool isPppInPause;
+    PPPIPInterface* pppInstance;
+    //int m_pppd;
+    //InterruptIn butt;
 
 };

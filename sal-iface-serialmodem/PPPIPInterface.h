@@ -48,7 +48,7 @@ public:
 private:
     int cleanupLink();
 
-    //void pppReadRoutine();
+    void sendToPpp();
     void disconnectionCallback();
     void connectionCallback();
     static void linkStatusCb(void *ctx, int errCode, void *arg); //PPP link status
@@ -59,6 +59,7 @@ private:
     bool m_streamAvail;
     const char* m_msisdn;
     int m_pppd;
+    uint8_t *m_pppbuf;
     //minar::callback_handle_t pppReadHandle; //
 
     friend u32_t sio_write(sio_fd_t fd, u8_t *data, u32_t len);

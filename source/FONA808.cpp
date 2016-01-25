@@ -134,27 +134,44 @@ bool FONA808::init(){
 }
 
 bool FONA808::enableGPS(bool enable){
-  if(m_ppp.isPPPLinkOpen()){ //TODO mPPPOpen su serialbuffered ??
+  if(m_ppp.isPPPLinkOpen()){
+	mSerial.setPppPause(true); 
 	wait_ms(1000);
 	mSerial.printf("+++");
 	wait_ms(1000);
   }
 
   uint16_t state;
-  if (! sendParseReply("AT+CGPSPWR?","+CGPSPWR: ", &state,',',0,500))
-      return false;
+  if (! sendParseReply("AT+CGPSPWR?","+CGPSPWR: ", &state,',',0,500)){
+     	if(m_ppp.isPPPLinkOpen()){
+		sendCheckReply("ATO","CONNECT",500);
+		mSerial.setPppPause(false);
+	}
+	 return false;
+     }
   
 
   if (enable && !state) {
-     if (! sendCheckReply("AT+CGPSPWR=1", "OK",500))
+     if (! sendCheckReply("AT+CGPSPWR=1", "OK",500)){
+	if(m_ppp.isPPPLinkOpen()){
+		sendCheckReply("ATO","CONNECT",500);
+		mSerial.setPppPause(false);	
+	}
 	return false;
+     }
   } else if (!enable && state) {
-    if (! sendCheckReply("AT+CGPSPWR=0", "OK",500))
+    if (! sendCheckReply("AT+CGPSPWR=0", "OK",500)){
+	if(m_ppp.isPPPLinkOpen()){
+		sendCheckReply("ATO","CONNECT",500);
+		mSerial.setPppPause(false);
+	}
 	return false;
+     }
   }
 
   if(m_ppp.isPPPLinkOpen()){
 	sendCheckReply("ATO","CONNECT",500);
+	mSerial.setPppPause(false);
   }
   return true;
 }

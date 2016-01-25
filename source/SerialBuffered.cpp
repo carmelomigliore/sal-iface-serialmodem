@@ -4,11 +4,11 @@
  
 //extern Serial loggerSerial;
  
-extern "C" {
+/*extern "C" {
 #include "ppp.h"
-}
+}*/
 
-SerialBuffered::SerialBuffered( size_t bufferSize, PinName tx, PinName rx ) : RawSerial(  tx,  rx ), loggerSerial(USBTX,USBRX), isPppOpen(false), isPppRoutineScheduled(false), m_pppd(-1), butt(USER_BUTTON) 
+SerialBuffered::SerialBuffered( size_t bufferSize, PinName tx, PinName rx ) : RawSerial(  tx,  rx ), loggerSerial(USBTX,USBRX), isPppOpen(false), isPppRoutineScheduled(false), isPppInPause(false)//, m_pppd(-1), butt(USER_BUTTON) 
 {
     m_buffSize = 0;
     m_contentStart = 0;
@@ -18,10 +18,10 @@ SerialBuffered::SerialBuffered( size_t bufferSize, PinName tx, PinName rx ) : Ra
     
     attach( this, &SerialBuffered::handleInterrupt, RxIrq );
     attach( NULL, TxIrq );
-    butt.fall(this, &SerialBuffered::sendToPpp);
+    //butt.fall(this, &SerialBuffered::sendToPpp);
    
     m_buff = (uint8_t *) malloc( bufferSize );
-    m_pppbuf = (uint8_t *) malloc(1500);
+    //m_pppbuf = (uint8_t *) malloc(1500);
     if( m_buff == NULL )
     {
         loggerSerial.printf("SerialBuffered - failed to alloc buffer size %d\r\n", (int) bufferSize );
@@ -37,8 +37,8 @@ SerialBuffered::~SerialBuffered()
 {
     if( m_buff )
         free( m_buff );
-    if( m_pppbuf )
-        free( m_pppbuf );
+    /*if( m_pppbuf )
+        free( m_pppbuf );*/
 }
 
 void SerialBuffered::setTimeout( int milliseconds )
@@ -118,21 +118,21 @@ void SerialBuffered:: cleanBuffer()
 
 }
 
-void SerialBuffered::sendToPpp(){
-  //loggerSerial.printf("\npppReadRoutine");
-  //uint8_t buffer[256];
-  isPppRoutineScheduled = false;
-  setTimeout(100);
-  int read = readBytes(m_pppbuf,1500);
-  loggerSerial.printf("\nRead = %d",read);
-  if(read>0 && m_pppd != -1){
-    pppos_input(m_pppd, m_pppbuf,read);
-  }
+void SerialBuffered::setPppPause(bool pause){
+	isPppInPause = pause;
 }
 
-void SerialBuffered::setPppOpen(int pppd, bool pppOpen){
-        m_pppd = pppd;
+void SerialBuffered::setPppInstance(PPPIPInterface* instance){
+	pppInstance = instance;
+}
+
+void SerialBuffered::setPppOpen(bool pppOpen){
+        //m_pppd = pppd;
 	isPppOpen = pppOpen;
+}
+
+void SerialBuffered::resetPppReadScheduled(){
+	isPppRoutineScheduled = false;
 }
 
 
@@ -159,8 +159,8 @@ void SerialBuffered::handleInterrupt()
             count++;
 	}
     }
-    if(isPppOpen && count > 0 && !isPppRoutineScheduled){
-          mbed::util::FunctionPointer0<void> ptr(this,&SerialBuffered::sendToPpp);
+    if(pppInstance!= NULL && pppInstance->isPPPLinkOpen() && count > 0 && !isPppRoutineScheduled && !isPppInPause){
+          mbed::util::FunctionPointer1<void> ptr(pppInstance,&PPPIPInterface::sendToPpp);
           minar::Scheduler::postCallback(ptr.bind());
 	  isPppRoutineScheduled = true;
     }
