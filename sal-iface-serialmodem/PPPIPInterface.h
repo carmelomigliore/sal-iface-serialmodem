@@ -45,10 +45,9 @@ public:
     virtual int disconnect();
     int getPPPErrorCode();
     bool isPPPLinkOpen();
+    void sendToPpp();
 private:
     int cleanupLink();
-
-    void sendToPpp();
     void disconnectionCallback();
     void connectionCallback();
     static void linkStatusCb(void *ctx, int errCode, void *arg); //PPP link status

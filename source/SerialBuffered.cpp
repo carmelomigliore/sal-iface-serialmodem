@@ -1,7 +1,7 @@
-
-#include "mbed-drivers/mbed.h"
 #include "SerialBuffered.h"
- 
+#include "mbed-drivers/mbed.h" 
+#include "PPPIPInterface.h"
+
 //extern Serial loggerSerial;
  
 /*extern "C" {
@@ -160,7 +160,7 @@ void SerialBuffered::handleInterrupt()
 	}
     }
     if(pppInstance!= NULL && pppInstance->isPPPLinkOpen() && count > 0 && !isPppRoutineScheduled && !isPppInPause){
-          mbed::util::FunctionPointer1<void> ptr(pppInstance,&PPPIPInterface::sendToPpp);
+          mbed::util::FunctionPointer0<void> ptr(pppInstance,&PPPIPInterface::sendToPpp);
           minar::Scheduler::postCallback(ptr.bind());
 	  isPppRoutineScheduled = true;
     }

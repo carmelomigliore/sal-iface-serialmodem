@@ -6,7 +6,7 @@
 // expect your program to receive in one go.
 
 #include "mbed-drivers/mbed.h"
-#include "PPPIPInterface.h"
+class PPPIPInterface;
 
 class SerialBuffered : public RawSerial
 {
@@ -32,6 +32,7 @@ public:
     void setPppPause(bool pause);
     void setPppInstance(PPPIPInterface* instance);
     void resetPppReadScheduled();
+    void setPppOpen(bool pppOpen);
    // void sendToPpp();
     
 
