@@ -54,7 +54,7 @@ extern "C" {
 PPPIPInterface::PPPIPInterface(SerialBuffered* mSerial) : LwIPInterface(), m_pppErrCode(0), m_streamAvail(true), m_pppd(-1)
 {
     m_pStream = mSerial;
-    m_pppbuf = (uint8_t*)malloc(1500);
+    m_pppbuf = (uint8_t*)malloc(3000);
 }
 
 
@@ -269,7 +269,7 @@ void PPPIPInterface::sendToPpp(){
   //uint8_t buffer[256];
   m_pStream->resetPppReadScheduled();
   m_pStream->setTimeout(100);
-  int read = m_pStream->readBytes(m_pppbuf,1500);
+  int read = m_pStream->readBytes(m_pppbuf,3000);
   printf("\nRead = %d",read);
   if(read>0 && m_pppd != -1){
     pppos_input(m_pppd, m_pppbuf,read);
@@ -426,7 +426,7 @@ int PPPIPInterface::cleanupLink()
   switch(errCode)
   {
   case PPPERR_NONE:
-    WARN("Connected via PPP.");
+    printf("Connected via PPP.");
     printf("Local IP address: %s", inet_ntoa(addrs->our_ipaddr));
     printf("Netmask: %s", inet_ntoa(addrs->netmask));
     printf("Remote IP address: %s", inet_ntoa(addrs->his_ipaddr));
@@ -447,27 +447,27 @@ int PPPIPInterface::cleanupLink()
     pIf->connectionCallback();
     break;
   case PPPERR_CONNECT: //Connection lost
-    WARN("Connection lost/terminated");
+    printf("Connection lost/terminated");
     pIf->setConnected(false);
     pIf->disconnectionCallback();
     break;
   case PPPERR_AUTHFAIL: //Authentication failed
-    WARN("Authentication failed");
+    printf("Authentication failed");
     pIf->setConnected(false);
     pIf->disconnectionCallback();
     break;
   case PPPERR_PROTOCOL: //Protocol error
-    WARN("Protocol error");
+    printf("Protocol error");
     pIf->setConnected(false);
     pIf->disconnectionCallback();
     break;
   case PPPERR_USER:
-    WARN("Disconnected by user");
+    printf("Disconnected by user");
     pIf->setConnected(false);
     pIf->disconnectionCallback();
     break;
   default:
-    WARN("Unknown error (%d)", errCode);
+    printf("Unknown error (%d)", errCode);
     pIf->setConnected(false);
     pIf->disconnectionCallback();
     break;
@@ -534,7 +534,7 @@ u32_t sio_read(sio_fd_t fd, u8_t *data, u32_t len)
   size_t readLen;
   if(!pIf->m_streamAvail) //If stream is not available (it is a shared resource) don't go further
   {
-    WARN("EXIT NOT AVAIL");
+    printf("EXIT NOT AVAIL");
     return 0;
   }
   ret = pIf->m_pStream->read(data, &readLen, len, osWaitForever); //Blocks until some data is received or an error happens

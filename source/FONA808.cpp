@@ -25,7 +25,7 @@
 #include "FONA808.h"
 #include <cstring>
 
-FONA808::FONA808(PinName Tx, PinName Rx, PinName rst):m_ipInit(false),mSerial(1500,Tx,Rx),m_ppp(&mSerial),m_rst(rst) {
+FONA808::FONA808(PinName Tx, PinName Rx, PinName rst):m_ipInit(false),mSerial(3000,Tx,Rx),m_ppp(&mSerial),m_rst(rst) {
 
 }
 
