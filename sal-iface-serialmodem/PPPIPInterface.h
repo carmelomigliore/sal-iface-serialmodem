@@ -53,11 +53,12 @@ private:
     static void linkStatusCb(void *ctx, int errCode, void *arg); //PPP link status
     //Semaphore m_linkStatusSphre;
     int m_pppErrCode;
-
     SerialBuffered* m_pStream; //Serial stream
     bool m_streamAvail;
     const char* m_msisdn;
     int m_pppd;
+    Serial& capture;
+    bool firstpacket;
     uint8_t *m_pppbuf;
     //minar::callback_handle_t pppReadHandle; //
 

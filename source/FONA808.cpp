@@ -42,7 +42,7 @@ if(!in)
   }
   m_ppp.setup(user, password, DEFAULT_MSISDN_GSM);
   
-  printf("Birra\n");
+  DEBUG_PRINT("Birra\n");
   
 /*
   if (m_onePort)
@@ -56,6 +56,7 @@ if(!in)
   {
     char cmd[48];
     int tries = 30;
+    sendCheckReply("ATH","OK",500);
     sprintf(cmd, "AT+CGDCONT=1,\"IP\",\"%s\"", apn);
    /* do //Try 30 times because for some reasons it can fail *a lot* with the K3772-Z dongle
     {
@@ -68,13 +69,13 @@ if(!in)
     } while(ret && --tries);*/
     if(!sendCheckReply(cmd,"OK",500)){
 	 //printf("ATResult: AT return=%d (code %d)", result.result, result.code);
-         printf("APN set to %s", apn);
+         DEBUG_PRINT("APN set to %s", apn);
     }
    
   }
 
   //Connect
-  printf("Connecting PPP");
+  DEBUG_PRINT("Connecting PPP");
 
   int ret = m_ppp.connect(); //TODO impostare callback per connessione
   //printf("Result of connect: Err code=%d", ret);
@@ -91,18 +92,18 @@ int FONA808::disconnect(){
 
 bool FONA808::init(){
   mSerial.baud(115200);
-  printf("Ciao FONA808!\n");
+  DEBUG_PRINT("Ciao FONA808!\n");
   m_rst = 1;         //perform FONA reboot
   wait_ms(100);
   m_rst=0;
   wait_ms(100);
   m_rst = 1;
   
-  wait_ms(10000);   // wait for reboot
+  wait_ms(2000);   // wait for reboot
   
-  printf("Cleaning buffer\n");
+  DEBUG_PRINT("Cleaning buffer\n");
   mSerial.cleanBuffer();
-  printf("Buffer clean\n");
+  DEBUG_PRINT("Buffer clean\n");
   
   for(int tries=0; tries < 3; tries++){
 	  sendCheckReply("AT", "OK",500);
@@ -121,16 +122,52 @@ bool FONA808::init(){
 	  }
 
 	  if(getNetworkStatus()!=1){
-		printf("Not registered to network yet\n");
+		DEBUG_PRINT("Not registered to network yet\n");
 		wait_ms(500);
 		continue;
 	 }
 	 return true;
  }
-  printf("Max num tries!\n");
+  DEBUG_PRINT("Max num tries!\n");
 
   return false;
   
+}
+
+void FONA808::readGPSInfo(float* latitude, float* longitude){
+	if(m_ppp.isPPPLinkOpen()){
+		mSerial.setPppPause(true); 
+		wait_ms(1000);
+		mSerial.printf("+++");
+		wait_ms(1000);
+		mSerial.cleanBuffer();
+	}
+	float lat=0;
+	float lon=0;
+	if(checkGPSFix()){
+		mSerial.cleanBuffer();
+		sendParseReplyGPS(&lat, &lon, 500);
+	}
+	
+	float degrees = floor(lat / 100);
+    	double minutes = lat - (100 * degrees);
+    	minutes /= 60;
+    	degrees += minutes;
+    	*latitude = degrees;
+    	
+    	degrees = floor(lon / 100);
+    	minutes = lon - (100 * degrees);
+    	minutes /= 60;
+    	degrees += minutes;
+	*longitude = degrees;
+	DEBUG_PRINT("\nRAW Latitude: %d, Longitude=%d\n",(int)lat, (int)lon);
+	
+	if(m_ppp.isPPPLinkOpen()){
+		sendCheckReply("ATO","CONNECT",500);
+		mSerial.cleanBuffer();
+		mSerial.setPppPause(false);
+ 	}
+
 }
 
 bool FONA808::enableGPS(bool enable){
@@ -139,22 +176,25 @@ bool FONA808::enableGPS(bool enable){
 	wait_ms(1000);
 	mSerial.printf("+++");
 	wait_ms(1000);
+	mSerial.cleanBuffer();
   }
 
   uint16_t state;
   if (! sendParseReply("AT+CGPSPWR?","+CGPSPWR: ", &state,',',0,500)){
      	if(m_ppp.isPPPLinkOpen()){
 		sendCheckReply("ATO","CONNECT",500);
+		mSerial.cleanBuffer();
 		mSerial.setPppPause(false);
 	}
 	 return false;
      }
-  
+  	DEBUG_PRINT("Stato GPS: %d", state);
 
   if (enable && !state) {
      if (! sendCheckReply("AT+CGPSPWR=1", "OK",500)){
 	if(m_ppp.isPPPLinkOpen()){
 		sendCheckReply("ATO","CONNECT",500);
+		mSerial.cleanBuffer();
 		mSerial.setPppPause(false);	
 	}
 	return false;
@@ -163,6 +203,7 @@ bool FONA808::enableGPS(bool enable){
     if (! sendCheckReply("AT+CGPSPWR=0", "OK",500)){
 	if(m_ppp.isPPPLinkOpen()){
 		sendCheckReply("ATO","CONNECT",500);
+		mSerial.cleanBuffer();
 		mSerial.setPppPause(false);
 	}
 	return false;
@@ -171,6 +212,7 @@ bool FONA808::enableGPS(bool enable){
 
   if(m_ppp.isPPPLinkOpen()){
 	sendCheckReply("ATO","CONNECT",500);
+	mSerial.cleanBuffer();
 	mSerial.setPppPause(false);
   }
   return true;
@@ -178,9 +220,8 @@ bool FONA808::enableGPS(bool enable){
 
 uint8_t FONA808::getNetworkStatus(void) {
   uint16_t status;
-
   if (! sendParseReply("AT+CREG?", "+CREG: ", &status, ',', 1, 500)) return 0;
-  printf("Status = %d",status);
+  DEBUG_PRINT("Status = %d",status);
   return status;
 }
 
@@ -188,12 +229,12 @@ bool FONA808::sendParseReply(char* command, const char *toreply,
           uint16_t *v, char divider, uint8_t index, uint16_t timeout) { 
   char reply[32];
   mSerial.setTimeout(timeout);
-  printf("Sending %s\r\n",command);
+  DEBUG_PRINT("Sending %s\r\n",command);
   //__disable_irq();
   mSerial.printf("%s\r\n",command);
   //__enable_irq();
   mSerial.readline((uint8_t*)reply,32); 
-  printf("Got %s", reply);
+  DEBUG_PRINT("Got %s", reply);
   char *p = strstr(reply, toreply);  // get the pointer to the voltage
   if (p == 0) return false;
   p+=strlen(toreply);
@@ -210,6 +251,56 @@ bool FONA808::sendParseReply(char* command, const char *toreply,
   return true;
 }
 
+bool FONA808::checkGPSFix(){
+	char replybuf[48];
+	const char* command = "AT+CGPSSTATUS?";
+	mSerial.setTimeout(500);
+	DEBUG_PRINT("Sending %s\r\n",command);
+	mSerial.printf("%s\r\n",command);
+	mSerial.readline((uint8_t*)replybuf,48);  
+	DEBUG_PRINT("Got %s", replybuf);
+	mSerial.cleanBuffer();
+	const char* fix2d = "+CGPSSTATUS: Location 2D Fix";
+	const char* fix3d = "+CGPSSTATUS: Location 3D Fix";
+	return (strncmp(replybuf,fix2d,strlen(fix2d)) == 0) || (strncmp(replybuf,fix3d,strlen(fix3d)) == 0);
+}
+
+bool FONA808::sendParseReplyGPS(float* lat, float* lon, uint16_t timeout) { 
+  char reply[48];
+  char tmp[20];
+  const char* command = "AT+CGPSINF=0";
+  const char* toreply = "+CGPSINF: 0,";
+  char divider = ',';
+  mSerial.setTimeout(timeout);
+  DEBUG_PRINT("Sending %s\r\n",command);
+  //__disable_irq();
+  mSerial.printf("%s\r\n",command);
+  //__enable_irq();
+  mSerial.readline((uint8_t*)reply,48); 
+  DEBUG_PRINT("Got %s", reply);
+  char *p = strstr(reply, toreply); 
+  if (p == 0) return false;
+  p+=strlen(toreply);
+  //DEBUG_PRINT("Cristo1 %s\n", p);
+  char* end = strchr(p, divider);
+  //DEBUG_PRINT("Cristo2 %s\n", end);
+  strncpy(tmp, p, end-p);
+  tmp[end-p]=0;  //Teminator
+  //DEBUG_PRINT("Cristo3 %s\n",tmp);
+  *lat = atof(tmp);
+  p+= (end-p)+1;
+  end = strchr(p, divider);
+  strncpy(tmp, p, end-p);
+  tmp[end-p]=0;
+  //DEBUG_PRINT("Cristo4 %s\n",tmp);
+  *lon = atof(tmp);
+    //Serial.println(p);
+   mSerial.cleanBuffer();
+   
+
+  return true;
+}
+
 int FONA808::cleanup(){
   return 0;
 }
@@ -220,13 +311,13 @@ bool FONA808::sendCheckReply(const char* command, const char* reply, uint16_t ti
    char replybuf[48];
    //printf("SetTimeout\n");
    mSerial.setTimeout(timeout);
-   printf("Sending %s\r\n",command);
+   DEBUG_PRINT("Sending %s\r\n",command);
    //__disable_irq();
    mSerial.printf("%s\r\n",command);
    //__enable_irq();
    //printf("la bomba\n");
    mSerial.readline((uint8_t*)replybuf,48);  
-   printf("Got %s", replybuf);
-   printf("baboomba\n");
+   DEBUG_PRINT("Got %s", replybuf);
+   //DEBUG_PRINT("baboomba\n");
    return strncmp(replybuf,reply,strlen(reply)) == 0;
 }

@@ -129,8 +129,9 @@ public:
 
   uint8_t getNetworkStatus();
   bool isConnected();
+  void readGPSInfo(float* latitude, float* longitude);
   bool enableGPS(bool enable);
-  char* getGPSCoordinates();
+  bool checkGPSFix();
   /** 
    * send an AT command and check the reply
    */
@@ -143,6 +144,7 @@ private:
   bool m_ipInit;          //< Has PPIPInterface object (m_ppp) been initialised? true/false
   DigitalOut m_rst;       //rst pin of FONA
   bool sendParseReply(char* command, const char *toreply, uint16_t *v, char divider, uint8_t index, uint16_t timeout);
+  bool sendParseReplyGPS(float* lat, float* lon, uint16_t timeout);
  // bool m_linkMonitorInit; //< Has LinkMonitor object (m_linkMonitor) been initialised? true/false
 };
 #endif

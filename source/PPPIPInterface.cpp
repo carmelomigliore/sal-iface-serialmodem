@@ -25,9 +25,9 @@
 #include "fwk.h"
 //#include "rtos.h"
 
-#include <cstdio>
-using std::sscanf;
-using std::sprintf;
+//#include <cstdio>
+//using std::sscanf;
+//using std::sprintf;
 
 #include "PPPIPInterface.h"
 
@@ -51,13 +51,11 @@ extern "C" {
 #include "ppp.h"
 }
 
-PPPIPInterface::PPPIPInterface(SerialBuffered* mSerial) : LwIPInterface(), m_pppErrCode(0), m_streamAvail(true), m_pppd(-1)
+PPPIPInterface::PPPIPInterface(SerialBuffered* mSerial) : LwIPInterface(), m_pppErrCode(0), m_streamAvail(true), m_pppd(-1),capture(get_stdio_serial()), firstpacket(true)
 {
     m_pStream = mSerial;
     m_pppbuf = (uint8_t*)malloc(3000);
 }
-
-
 
 /*virtual*/ PPPIPInterface::~PPPIPInterface()
 {
@@ -66,21 +64,21 @@ PPPIPInterface::PPPIPInterface(SerialBuffered* mSerial) : LwIPInterface(), m_ppp
 
 /*virtual*/ int PPPIPInterface::init() //Init PPP-specific stuff, create the right bindings, etc
 {
-  printf("Initializing LwIP");
+  DEBUG_PRINT("Initializing LwIP");
   LwIPInterface::init(); //Init LwIP, NOT including PPP
-  printf("Initializing PPP");
+  DEBUG_PRINT("Initializing PPP");
   pppInit();
-  printf("Done");
+  DEBUG_PRINT("Done");
   return OK;
 }
 
 int PPPIPInterface::setup(const char* user, const char* pw, const char* msisdn)
 {
-  printf("Configuring PPP authentication method\n");
+  DEBUG_PRINT("Configuring PPP authentication method\n");
   pppSetAuth(PPPAUTHTYPE_ANY, user, pw);
   m_msisdn = msisdn;
   m_pStream->setPppInstance(this);
-  printf("Done\n");
+  DEBUG_PRINT("Done\n");
   return OK;
 }
 
@@ -91,19 +89,19 @@ int PPPIPInterface::setup(const char* user, const char* pw, const char* msisdn)
   int cmdLen;
   char buf[32];
   size_t len;
-  printf("Trying to connect with PPP\n");
+  DEBUG_PRINT("Trying to connect with PPP\n");
   
   cleanupLink();
   
   cmdLen = sprintf(cmd, "%s%s%s", CONNECT_CMD_PREFIX, m_msisdn, CONNECT_CMD_SUFFIX);
-  printf("Sending %s", cmd);
+  DEBUG_PRINT("Sending %s", cmd);
   //ret = m_pStream->write((uint8_t*)cmd, cmdLen, osWaitForever);
   ret = m_pStream->printf("%s", cmd);
   if( ret < 0 )
   {
     return NET_UNKNOWN;
   }
-  printf("Connected\n");
+  DEBUG_PRINT("Connected\n");
   len = 0;
   size_t readLen;
  /* while(m_pStream->available() && (buf[len]=m_pStream->getc()) != LF && len <EXPECTED_RESP_MIN_LEN){
@@ -126,13 +124,13 @@ int PPPIPInterface::setup(const char* user, const char* pw, const char* msisdn)
     len += readLen;
   }
   */
-  printf("Trying to read response\n");
-  m_pStream->setTimeout(15000);
+  DEBUG_PRINT("Trying to read response\n");
+  m_pStream->setTimeout(6000);
   len = m_pStream->readBytes((uint8_t*)buf,EXPECTED_RESP_MIN_LEN);
   
   buf[len]=0;
   
-  printf("Got %s[len %d]\n", buf, len);
+  DEBUG_PRINT("Got %s[len %d]\n", buf, len);
   
   //int datarate = 0;
   
@@ -153,7 +151,7 @@ int PPPIPInterface::setup(const char* user, const char* pw, const char* msisdn)
   }  
 
   m_pStream->cleanBuffer();
-  printf("Transport link open\n");
+  DEBUG_PRINT("Transport link open\n");
   /*if(datarate != 0)
   {
     printf("Datarate: %d bps\n", datarate);
@@ -178,7 +176,7 @@ int PPPIPInterface::setup(const char* user, const char* pw, const char* msisdn)
   //m_pStream->setPppOpen(true);
  
   //__enable_irq();
-  printf("PPPoverSerial %d\n",ret);
+  //DEBUG_PRINT("PPPoverSerial %d\n",ret);
   
   //mbed::util::FunctionPointer0<void> ptr(this,&PPPIPInterface::pppReadRoutine);
   //pppReadHandle = minar::Scheduler::postCallback(ptr.bind()).period(minar::milliseconds(500)).getHandle();
@@ -208,7 +206,7 @@ int PPPIPInterface::setup(const char* user, const char* pw, const char* msisdn)
 }
 
 void PPPIPInterface::connectionCallback(){
-  printf("ConnCallback\n");
+  //DEBUG_PRINT("ConnCallback\n");
   
 }
 
@@ -270,9 +268,19 @@ void PPPIPInterface::sendToPpp(){
   m_pStream->resetPppReadScheduled();
   m_pStream->setTimeout(100);
   int read = m_pStream->readBytes(m_pppbuf,3000);
-  printf("\nRead = %d",read);
+  //DEBUG_PRINT("\nRead = %d\n",read);
+  uint16_t mylen = (uint16_t)read;
+  uint8_t* mylenptr = (uint8_t*)&mylen;
+  //TODO capture
   if(read>0 && m_pppd != -1){
+    /*capture.putc(0x02);
+    capture.putc(mylenptr[1]);
+    capture.putc(mylenptr[0]);
+    for(int i = 0; i< read; i++){
+	capture.putc(m_pppbuf[i]);
+    }*/
     pppos_input(m_pppd, m_pppbuf,read);
+    //fflush(stdout);
   }
 }
 
@@ -282,7 +290,7 @@ bool PPPIPInterface::isPPPLinkOpen(){
 
 void PPPIPInterface::disconnectionCallback(){
   //minar::Scheduler::cancelCallback(pppReadHandle);
-  printf("Sending %s", ESCAPE_SEQ);
+  DEBUG_PRINT("Sending %s", ESCAPE_SEQ);
  
  // ret = m_pStream->write((uint8_t*)ESCAPE_SEQ, strlen(ESCAPE_SEQ), osWaitForever);
  int ret = m_pStream->printf(ESCAPE_SEQ);
@@ -320,7 +328,7 @@ int PPPIPInterface::cleanupLink()
 
   m_pStream->cleanBuffer();
   
-  printf("Sending %s\n", HANGUP_CMD);
+  DEBUG_PRINT("Sending %s\n", HANGUP_CMD);
   
   //ret = m_pStream->write((uint8_t*)HANGUP_CMD, strlen(HANGUP_CMD), osWaitForever);
   ret = m_pStream->printf(HANGUP_CMD);
@@ -418,7 +426,7 @@ int PPPIPInterface::cleanupLink()
 
 /*static*/ void PPPIPInterface::linkStatusCb(void *ctx, int errCode, void *arg) //PPP link status
 {
-  printf("Status callback, error code: %d",errCode);
+  DEBUG_PRINT("Status callback, error code: %d",errCode);
   PPPIPInterface* pIf = (PPPIPInterface*)ctx;
   struct ppp_addrs* addrs = (struct ppp_addrs*) arg;
 
@@ -426,12 +434,12 @@ int PPPIPInterface::cleanupLink()
   switch(errCode)
   {
   case PPPERR_NONE:
-    printf("Connected via PPP.");
-    printf("Local IP address: %s", inet_ntoa(addrs->our_ipaddr));
-    printf("Netmask: %s", inet_ntoa(addrs->netmask));
-    printf("Remote IP address: %s", inet_ntoa(addrs->his_ipaddr));
-    printf("Primary DNS: %s", inet_ntoa(addrs->dns1));
-    printf("Secondary DNS: %s", inet_ntoa(addrs->dns2));
+    DEBUG_PRINT("Connected via PPP.");
+    DEBUG_PRINT("Local IP address: %s", inet_ntoa(addrs->our_ipaddr));
+    DEBUG_PRINT("Netmask: %s", inet_ntoa(addrs->netmask));
+    DEBUG_PRINT("Remote IP address: %s", inet_ntoa(addrs->his_ipaddr));
+    DEBUG_PRINT("Primary DNS: %s", inet_ntoa(addrs->dns1));
+    DEBUG_PRINT("Secondary DNS: %s", inet_ntoa(addrs->dns2));
     //Setup DNS
     if (addrs->dns1.addr != 0)
     {
@@ -447,27 +455,27 @@ int PPPIPInterface::cleanupLink()
     pIf->connectionCallback();
     break;
   case PPPERR_CONNECT: //Connection lost
-    printf("Connection lost/terminated");
+    DEBUG_PRINT("Connection lost/terminated");
     pIf->setConnected(false);
     pIf->disconnectionCallback();
     break;
   case PPPERR_AUTHFAIL: //Authentication failed
-    printf("Authentication failed");
+    DEBUG_PRINT("Authentication failed");
     pIf->setConnected(false);
     pIf->disconnectionCallback();
     break;
   case PPPERR_PROTOCOL: //Protocol error
-    printf("Protocol error");
+    DEBUG_PRINT("Protocol error");
     pIf->setConnected(false);
     pIf->disconnectionCallback();
     break;
   case PPPERR_USER:
-    printf("Disconnected by user");
+    DEBUG_PRINT("Disconnected by user");
     pIf->setConnected(false);
     pIf->disconnectionCallback();
     break;
   default:
-    printf("Unknown error (%d)", errCode);
+    DEBUG_PRINT("Unknown error (%d)", errCode);
     pIf->setConnected(false);
     pIf->disconnectionCallback();
     break;
@@ -495,9 +503,12 @@ extern "C"
  */
 u32_t sio_write(sio_fd_t fd, u8_t *data, u32_t len)
 {
-  printf("sio_write\n");
+  //DEBUG_PRINT("\nsio_write\n");
+  //printf("sio_write");
   PPPIPInterface* pIf = (PPPIPInterface*)fd;
   int ret;
+  uint16_t mylen = (uint16_t)len;
+  uint8_t *mylenptr = (uint8_t*)&mylen;
   if(!pIf->m_streamAvail) //If stream is not available (it is a shared resource) don't go further
   {
     return 0;
@@ -505,12 +516,25 @@ u32_t sio_write(sio_fd_t fd, u8_t *data, u32_t len)
   //ret = pIf->m_pStream->write(data, len, osWaitForever); //Blocks until all data is sent or an error happens
   int i = 0;
  // __disable_irq();
+  /*if(pIf->firstpacket){
+	pIf->capture.putc(0x07);
+	pIf->capture.putc(0x01);
+	pIf->capture.putc(0x02);
+	pIf->capture.putc(0x03);
+	pIf->capture.putc(0x04);
+	pIf->firstpacket = false;
+  }
+  pIf->capture.putc(0x01);
+  pIf->capture.putc(mylenptr[1]);
+  pIf->capture.putc(mylenptr[0]);*/
   while(i < len){
      pIf->m_pStream->putc(data[i]);
+     //pIf->capture.putc(data[i]);
      i++;
   }
+  //fflush(stdout);
  // __enable_irq();
-   printf("Written %d bytes\n",len);
+ //  DEBUG_PRINT("\nWritten %d bytes\n",len);
   return len;
 }
 
