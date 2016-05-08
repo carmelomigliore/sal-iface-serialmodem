@@ -21,6 +21,7 @@
 #define IPINTERFACE_H_
 
 #include "fwk.h"
+#include "mbed-drivers/mbed.h"
 
 /** Generic IP-based network interface
  *
@@ -32,7 +33,7 @@ public:
     virtual ~IPInterface();
 
     //int init(); //Initialize interface; no connection should be performed at this stage
-    virtual int connect() = 0; //Do connect the interface
+    virtual int connect(mbed::util::FunctionPointer0<void> connectionCallback) = 0; //Do connect the interface
     virtual int disconnect() = 0;
     //It is encouraged that the derived class implement a "setup(...)" function to configure the interface before the connection
     

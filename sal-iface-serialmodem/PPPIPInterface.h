@@ -20,7 +20,6 @@
 #ifndef PPPIPINTERFACE_H_
 #define PPPIPINTERFACE_H_
 
-#include "mbed-drivers/mbed.h"
 #include "fwk.h"
 #include "SerialBuffered.h"
 #include "LwIPInterface.h"
@@ -41,15 +40,16 @@ public:
 
     int init(); //Init PPP-specific stuff, create the right bindings, etc
     int setup(const char* user, const char* pw, const char* msisdn); //Setup authentication
-    virtual int connect();
+    virtual int connect(mbed::util::FunctionPointer0<void> connectionCallback);
     virtual int disconnect();
     int getPPPErrorCode();
     bool isPPPLinkOpen();
     void sendToPpp();
+    void sendBufferedData();
 private:
     int cleanupLink();
-    void disconnectionCallback();
-    void connectionCallback();
+    void onDisconnect();
+    void onConnect();
     static void linkStatusCb(void *ctx, int errCode, void *arg); //PPP link status
     //Semaphore m_linkStatusSphre;
     int m_pppErrCode;
@@ -60,6 +60,9 @@ private:
     Serial& capture;
     bool firstpacket;
     uint8_t *m_pppbuf;
+    uint8_t *m_sendbuf;
+    int bufferedcounter = 0;
+    mbed::util::FunctionPointer0<void> connectionCallback;
     //minar::callback_handle_t pppReadHandle; //
 
     friend u32_t sio_write(sio_fd_t fd, u8_t *data, u32_t len);

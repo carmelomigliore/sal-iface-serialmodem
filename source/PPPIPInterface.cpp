@@ -54,7 +54,8 @@ extern "C" {
 PPPIPInterface::PPPIPInterface(SerialBuffered* mSerial) : LwIPInterface(), m_pppErrCode(0), m_streamAvail(true), m_pppd(-1),capture(get_stdio_serial()), firstpacket(true)
 {
     m_pStream = mSerial;
-    m_pppbuf = (uint8_t*)malloc(3000);
+    m_pppbuf = new uint8_t[3000];
+    m_sendbuf = new uint8_t[3000];
 }
 
 /*virtual*/ PPPIPInterface::~PPPIPInterface()
@@ -82,8 +83,9 @@ int PPPIPInterface::setup(const char* user, const char* pw, const char* msisdn)
   return OK;
 }
 
-/*virtual*/ int PPPIPInterface::connect() //TODO callback connection
+/*virtual*/ int PPPIPInterface::connect(mbed::util::FunctionPointer0<void> connectionCallback) //TODO callback connection
 {
+  this->connectionCallback = connectionCallback;
   int ret;
   char cmd[32];
   int cmdLen;
@@ -205,9 +207,9 @@ int PPPIPInterface::setup(const char* user, const char* pw, const char* msisdn)
   }*/
 }
 
-void PPPIPInterface::connectionCallback(){
+void PPPIPInterface::onConnect(){
+	minar::Scheduler::postCallback(connectionCallback.bind());
   //DEBUG_PRINT("ConnCallback\n");
-  
 }
 
 /*virtual*/ int PPPIPInterface::disconnect()
@@ -284,11 +286,20 @@ void PPPIPInterface::sendToPpp(){
   }
 }
 
+void PPPIPInterface::sendBufferedData(){
+	if(bufferedcounter > 0){
+		DEBUG_PRINT("\nSending previously buffered %d bytes\n", bufferedcounter);
+		sio_write((sio_fd_t)this, m_sendbuf, bufferedcounter);
+		bufferedcounter = 0;
+	}else
+		DEBUG_PRINT("\nNo buffered data to send\n");
+}
+
 bool PPPIPInterface::isPPPLinkOpen(){
 	return m_pppd != -1;
 }
 
-void PPPIPInterface::disconnectionCallback(){
+void PPPIPInterface::onDisconnect(){
   //minar::Scheduler::cancelCallback(pppReadHandle);
   DEBUG_PRINT("Sending %s", ESCAPE_SEQ);
  
@@ -452,32 +463,32 @@ int PPPIPInterface::cleanupLink()
         
     pIf->setConnected(true);
     pIf->setIPAddress(inet_ntoa(addrs->our_ipaddr));
-    pIf->connectionCallback();
+    pIf->onConnect();
     break;
   case PPPERR_CONNECT: //Connection lost
     DEBUG_PRINT("Connection lost/terminated");
     pIf->setConnected(false);
-    pIf->disconnectionCallback();
+    pIf->onDisconnect();
     break;
   case PPPERR_AUTHFAIL: //Authentication failed
     DEBUG_PRINT("Authentication failed");
     pIf->setConnected(false);
-    pIf->disconnectionCallback();
+    pIf->onDisconnect();
     break;
   case PPPERR_PROTOCOL: //Protocol error
     DEBUG_PRINT("Protocol error");
     pIf->setConnected(false);
-    pIf->disconnectionCallback();
+    pIf->onDisconnect();
     break;
   case PPPERR_USER:
     DEBUG_PRINT("Disconnected by user");
     pIf->setConnected(false);
-    pIf->disconnectionCallback();
+    pIf->onDisconnect();
     break;
   default:
     DEBUG_PRINT("Unknown error (%d)", errCode);
     pIf->setConnected(false);
-    pIf->disconnectionCallback();
+    pIf->onDisconnect();
     break;
   }
 
@@ -509,12 +520,21 @@ u32_t sio_write(sio_fd_t fd, u8_t *data, u32_t len)
   int ret;
   uint16_t mylen = (uint16_t)len;
   uint8_t *mylenptr = (uint8_t*)&mylen;
-  if(!pIf->m_streamAvail) //If stream is not available (it is a shared resource) don't go further
+  
+  int i = 0;
+  if(!(pIf->m_pStream->isSerialAvailable())) //If stream is not available (it is a shared resource) don't go further
   {
-    return 0;
+    
+    while(i < len){
+    	pIf->m_sendbuf[pIf->bufferedcounter] = data[i];
+    	i++;
+    	(pIf->bufferedcounter)++;
+    }
+    DEBUG_PRINT("\nSerial not available, buffering data, counter: %d\n", pIf->bufferedcounter);
+    return len;
   }
   //ret = pIf->m_pStream->write(data, len, osWaitForever); //Blocks until all data is sent or an error happens
-  int i = 0;
+  
  // __disable_irq();
   /*if(pIf->firstpacket){
 	pIf->capture.putc(0x07);

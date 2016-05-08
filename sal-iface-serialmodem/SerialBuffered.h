@@ -33,6 +33,7 @@ public:
     void setPppInstance(PPPIPInterface* instance);
     void resetPppReadScheduled();
     void setPppOpen(bool pppOpen);
+    bool isSerialAvailable();
    // void sendToPpp();
     
 

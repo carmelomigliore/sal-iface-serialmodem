@@ -51,14 +51,14 @@ class FONA808
 public:
   /** Create u-blox API instance
    */
-  FONA808(PinName Tx, PinName rx, PinName rst);
+  FONA808(PinName Tx, PinName rx, PinName rst, mbed::util::FunctionPointer3<void, float, float, float> myGpsReadCallback, mbed::util::FunctionPointer0<void> myGpsNoFixCallback);
 
   //Internet-related functions
 
   /** Open a 3G internet connection
       @return 0 on success, error code on failure
   */
-  int connect(const char* apn = NULL, const char* user = NULL, const char* password = NULL);
+  int connect(const char* apn, const char* user, const char* password, mbed::util::FunctionPointer0<void> connectionCallback);
 
   /** Close the internet connection
      @return 0 on success, error code on failure
@@ -129,9 +129,10 @@ public:
 
   uint8_t getNetworkStatus();
   bool isConnected();
-  void readGPSInfo(float* latitude, float* longitude);
+  void readGPSInfo();
   bool enableGPS(bool enable);
   bool checkGPSFix();
+  const char* getTimestamp() const;
   /** 
    * send an AT command and check the reply
    */
@@ -143,8 +144,13 @@ private:
   PPPIPInterface m_ppp;        //< Interface to PPP conection manager (IP assignment etc)
   bool m_ipInit;          //< Has PPIPInterface object (m_ppp) been initialised? true/false
   DigitalOut m_rst;       //rst pin of FONA
+  mbed::util::FunctionPointer3<void, float, float, float> gpsReadCallback;
+  mbed::util::FunctionPointer0<void> gpsNoFixCallback;
   bool sendParseReply(char* command, const char *toreply, uint16_t *v, char divider, uint8_t index, uint16_t timeout);
-  bool sendParseReplyGPS(float* lat, float* lon, uint16_t timeout);
+  bool sendParseReplyGPS(float* lat, float* lon, float* alt, char* utctime, uint16_t timeout);
+  void readGPSInfoFirst();
+  void readGPSInfoSecond();
+  char timestamp[25];
  // bool m_linkMonitorInit; //< Has LinkMonitor object (m_linkMonitor) been initialised? true/false
 };
 #endif

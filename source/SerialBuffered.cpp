@@ -20,7 +20,7 @@ SerialBuffered::SerialBuffered( size_t bufferSize, PinName tx, PinName rx ) : Ra
     attach( NULL, TxIrq );
     //butt.fall(this, &SerialBuffered::sendToPpp);
    
-    m_buff = (uint8_t *) malloc( bufferSize );
+    m_buff = new uint8_t [bufferSize];
     //m_pppbuf = (uint8_t *) malloc(1500);
     if( m_buff == NULL )
     {
@@ -118,8 +118,14 @@ void SerialBuffered:: cleanBuffer()
 
 }
 
+bool SerialBuffered::isSerialAvailable(){
+	return !isPppInPause;
+}
+
 void SerialBuffered::setPppPause(bool pause){
 	isPppInPause = pause;
+	if(!pause)
+		pppInstance->sendBufferedData();
 }
 
 void SerialBuffered::setPppInstance(PPPIPInterface* instance){
