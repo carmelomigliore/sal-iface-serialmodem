@@ -148,6 +148,10 @@ int PPPIPInterface::setup(const char* user, const char* pw, const char* msisdn)
     }
   }   */ 
   
+  if(strstr(buf, "NO CARR") != NULL){
+  	return NET_INVALID;
+  }
+  
   if(strstr(buf,"CONNECT") == NULL){
 	return NET_TIMEOUT;
   }  
